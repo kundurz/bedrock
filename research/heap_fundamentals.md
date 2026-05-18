@@ -118,7 +118,7 @@ mchunkptr bins[]; // Array of pointers to chunks.
 * Each bin is represented by two values in the bins array.
 
 ###### Fast bins
-* There are 10 fat bins. Each of these bins maintains a single linked list. Addition and deletion happen from the front of this list (LIFO manner).
+* There are 10 fast bins. Each of these bins maintains a single linked list. Addition and deletion happen from the front of this list (LIFO manner).
 * Each bin has chunks of the same size. The 10 bins each have chunks of size: 16, 24, 32, 40, 48, 56, 64, 72, 80, and 88.
 * Sizes mentioned here include metadata as well.
 * To store chunks, 4 fewer bytes will be available (on a platform where pointers use 4 bytes). Only the `prev_size` and `size` field of this chunk will hold meta data for allocated chunks. `prev_size` of next contiguous chunk will hold user data.
@@ -145,6 +145,45 @@ mchunkptr bins[]; // Array of pointers to chunks.
 	* To summarisze:
 
 There are two special chunks which are not part of any bin:
+
+1. Top chunk: it is the chunk which borderes the top of an arena. While servicing 'malloc' requests, it is used as the last resort. If still more size is required, it can grow using the `sbrk` system call. The `PREV_INUSE` flag is always set for the top chunk. 
+2. Last remainder chunk: The chunk obtained from the last split. Sometimes, when exact size chunks are not available bigger chunks are split in two. One part is returned to the user and the other becomes the last remainder chunk.
+
+
+## Internal Functions
+
+`arena_get(ar_ptr, size)`
+* Acquires an arena and locks the corresponding mutex. `ar_ptr` is set to point to the corresponding arena. `size` is just a hint as to how much memory will be required immeditayely.
+`sysmalloc`
+* handles malloc cases requiring more memory from the system.
+* On entry, it is assumed that av_top does not have enough space to service request for nb bytes, thus requiring that av->top be extended or replaced
+`alloc_perturb(char *p, size_t n)`
+* If `perturb_byte` (tunable parameter for malloc using `M_PERTURB`) is non-zero (by default it is 0), sets the `n` bytes pointed to by `p` to be equal to `perturb_byte` ^ 0xff.
+`void free_perturb(char *p, size_t n)`
+* If  `perturb_byte` (tunable parameter for malloc using `M_PERTURB`) is non-zero (by default is 0), sets the `n` bytes pointed to by `p` to be equal to `perturb_byte`
+`void malloc_init_state(mstate av)`
+* Initialize a malloc stat estruct
+* Only called from within malloc_consolidate, which needs to be called in the same contexts anyway. It is never called directly outside of malloc_consolidate because some optimizing compilers try to inline it at all call pints, which turns out not to be an optimization at all.
+`unlink(AV, P, BK, FD)`
+* This is a defined macro which removes a chunk from a bin
+1. Check if chunk size is equal to the previous size set in the next chunk, else an error is thrown
+2. Check if `P->fd->bk == P` and `P->bk->fd == P`, Else, an error ("corrupted double linked-list") is thrown
+3. Adjust forward and backward pointers or neighboring chunks (in list) to facilitate removal:
+	a. Set `P->fd->bk` =  `P->bk`
+	b. Set `P->bk->fd` = `P->fd`
+`void malloc_consolidate(mstate av)`
+* This is a specialized version of `free()`
+1. Check if `global_max_fast` is 0 (`av` not initialized) or not. If it is 0, call `malloc_init_state` with `av` as parameter and return.
+2. If `global_max_fast` is non-zero, clear the `FASTCHUNKS_BIT` for `av`
+3. Iterate on the fastbin array from first to last indicies
+	a. Get a lock on the current fastbin chunk and proceed if not null.
+	b. If previous chunk (by memory) is nto in use, call `unlink` on the previous chunk.
+	c. If next chunk (by memory) is not top chunk:
+		i. If next chunk is not in use, call `unlink` on the next chunk
+		ii. Merge the chunk with previous, next (by memory), if any is free, and then add the consolidated chunk to the head of the unsorted bin.
+	d. If next chunk (by memory) was a top chunk, merge the chunks appropriately into a single top chunk. 
+
+Notes: `alloc_perturb` and `free_perturb` are not for security, they are used for debugging to ensure that the developer is not relying memory bugs int heir code, such as use-after-free or there are any logic issues.
 
 1. Top chunk: it is the chunk which borderes the top of an arena. While servicing 'malloc' requests, it is used as the last resort. If still more size is required, it can grow using the `sbrk` system call. The `PREV_INUSE` flag is always set for the top chunk. 
 2. Last remainder chunk: The chunk obtained from the last split. Sometimes, when exact size chunks are not available bigger chunks are split in two. One part is returned to the user and the other becomes the last remainder chunk.
