@@ -1,5 +1,4 @@
 # Dynamic Allocation
-
 * A dynamic memory allocator maintains an area of a process's virtual memory known as the heap.
 * The heap is an area of demand-zero memory that begins immediately after the uninitialized data area grows upward (toward higher addresses). 
 * For each process, the kernel maintians a variable `brk` pronounced "break" that points to the top of the heap.
@@ -131,3 +130,66 @@ void *sbrk(intptr_t incr);
 		* In each case, the coalescing is performed in constant time.
 * Potential disadvantage: Requiring each block to contain a header and a footer can introduce significant memory overhead.
 * Clever optimization: if w ewere to store the allocated/free bit of the previous block in one of the excess low-order bits of the current block, then allocated blocks would not need footers and we oculd use the extra space for the payload. Note however, that free blocks would still need footers.
+
+### Explicit Free Lists
+* The implicit free list is not appropriate for a general-purpose allocator, as the block allocation time is linear in the total number of heap blocks. 
+* A better approach is to organize the free blocks into some form of explicit data structure
+* Since by definition the body of a free block is not needed by the program, the pointers that implement the data structure can be stored within the bodies of the free blocks.
+* For exampl,e the heap can be organized as a doubly linked free list by including a `pred` (predeccessor) and `succ` (successor) pointer in each free block.
+* Using a doubly linked list instead of an implicit free list reduces the first-fit allocation time from linear in total number of blocks, to linear in the number of free blocks. 
+* However, the time to free a block can either be linear or constant, depending on the policy we choose for ordering the blocks in the free list. 
+* One approach is to maintain the list in *last-in-first-out (LIFO)* order by inserting newly freed blocks at the beginning of the list.
+* With LIFO ordering and a first-fit placement policy, the allocator inspects the most recently used blocks first.
+* In this case, freeing a block can be performed in constant time. If boundary tags are well used then coalescing can also be performed in constant time.
+* Another approach is to maintain the list in *address order*, where the address in each block of the list is less than the address of the successor. In this case, freeing a block requires a linear-time search to locate the appropriate prdecessor. 
+	* The trade-off is that address-ordered first fit enjoys better memory utilization than LIFO-ordered first fit, approaching the utilization of best fit.
+* A disadvantage of explicit lists in general is that free blocks must be large enough to contain all necessary pointers, as well as the header and possibly a footer. This results in a larger minimum block size and increases the potential for internal fragmentation. 
+
+#### Segregated Free Lists
+* An allocator that uses a single linked list of free blocks requires time linear int he number of free blocks to allocate a block.
+* A popular approach for reducing the allocation time, known generally as "segregated storage", is to maintain multiple free lists, where each list holds blocks that are roughly the same size.
+* The general idea is to partition the set of all possible block sizes into equivalence classes called *size classes*
+* There are many ways to define size classes, some people do powers of 2, or small blocks might be assigned to their own size classes, and partition large blocks by powers of 2.
+* The allocator maintains an array of free lists, with one free list per size class, ordered by increasing size. 
+* When the allocator needs a block of size *n* , it searches the appropriate free list.
+* if it cannot finda  block that fits, it searches the next list, and so on.
+* You need to think about when coalescing is performed,
+
+#### Simple Segregated Storage
+* The free list for each size class contains same-size blocks, each size of te largest element of the size class. 
+* For example, if some size class is defined as \[17-32], then the free list for that class consists entirely of blocks of size 32.
+* TO allocate a block of some given size, we check the appropriate free list. 
+* If the list is not empty, we simply allocate the first block in its entirety. 
+* Free blocks are never split to satisfy allocation requsts. If the list is empty, the allocator requests a fixed-size chunk of additional memory from the OS (typically a multiple of the page size), divides the chunk into equal size blocks, and links the blocks together to form a new free list. 
+* To free a block, the allocator simply inserts the block at the front of the appropriate free list.
+* A number of advantages to this simple scheme: 
+	* Allocating and freeing blocks are both fast constant-time operations. 
+	* The combination of the same-size blocks in eahc chunk, no splitting, and no coalescing means that there is very little per-block memory overhead. 
+	* Since each chunk hs only same-size blocks, the size of an allocated block can be inferred from its address. 
+	* Since there is no coalescing, allocated blocks do not need an allocated/free flag in the header. 
+		* Allocated blocks actually require no headers, and since there is no ccoalescing, they do not require footers either. 
+		* Since allocate and free operations insert and delete blocks at the beginning of the free list, the list need only be a single linked list instead of a doubly linked. 
+* A significant disadvantage is that simple segregated storage is susceptible to internal and external fragmentation. Internal fragmentation is possible because free blocks are never split. Worse, certain reference patterns can cause extreme external fragmentation because free blocks are never coalesced. 
+
+#### Segregrated Fits
+* With this approach, the allocator maitnains an array of free lists. Each free list is associated with a size class and is organized as some kind of explicit or implicit list. 
+* Each list contains potentiallt different-size blocks whose sizes are members of the size class.
+* There are many variants of segregated fits allocators.
+* To allocate a block, we determine the size class of the request and do a first-fit search of the appropriate free list for a block that fits. If we find one, then we (optionally) split it and insert the fragment int he appropriate free list.
+* If we cannot find a block that fits then we search the free list for the next larger size class.
+* If none of the free lists yield a block that fits, then we request additional heap memory from the operating system, allocate the block out of this new heap memory, and place the remainder in the appropriate size class. 
+* To free a block, we coalesce and place the results on the apppropriate free list.
+* The segregated fits approach is a popular choice with production-quality allocators such as the GNU `malloc` package provided in the C standard library because it is both fast and memory efficient. 
+
+#### Buddy Systems
+* A special case of segregated fits where each size class is a power of 2. 
+* We maintain separate free lists for each block that is of the power of 2 size.
+* if we cant find a block of the  right size, we recursively split a larger block in half. 
+* As we perform this split, each remaining half (known as a *buddy*), is placed on the appropriate free list.
+* To free a block of size `2^k`, we continue coalescing with the free buddies. When we encounter an allocated buddy, we stop coalescing.
+* You can compute the buddy's address pirely with arithmetic operations.
+* A key fact about buddy systems is that, given the address and size of a block, its easy to compute the address of its buddy. 
+* In other words, the address of a block and its buddy differ by exactly one bit position. 
+* The major advantage of a buddy system allocator is its fast searching and coalescing.
+* Major disadvantage is that power of 2 requirement on the block size can cause significant internal fragmentation.
+
