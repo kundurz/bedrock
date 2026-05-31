@@ -1,4 +1,5 @@
 #include "heap_internal.h"
+#include "utils.h"
 #include <stdio.h>
 
 int main() {
