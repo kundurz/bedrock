@@ -15,3 +15,6 @@ struct large_chunk
     struct large_chunk *bk;
     char *user_data;
 };
+
+/* Internal heap functions */
+int heap_init();
