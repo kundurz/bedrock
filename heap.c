@@ -28,7 +28,6 @@ char* _metadata_alloc(int bytes) {
 */
 int _heap_init()
 {
-
     metadata_start = (char*)mmap(
         NULL, 
         4096,
@@ -82,6 +81,13 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
         prev = current_fast_chunk;
         current += size_class;
     }
+}
+
+struct fast_chunk* bin_pop(struct fast_chunk** bin) {
+    struct fast_chunk* to_pop = *bin;
+    *bin = (*bin)->fd;
+    
+    return to_pop;
 }
 
 void print_list(struct fast_chunk* hd) {
