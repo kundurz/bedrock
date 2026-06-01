@@ -10,8 +10,8 @@ utils.o: utils.c utils.h
 util_test.o: utils_test.c utils.h
 	gcc -c utils_test.c -o util_test.o 
 
-main: heap.o main.o 
-	gcc main.o heap.o -o main
+main: heap.o main.o utils.o 
+	gcc main.o heap.o utils.o -o main
 
 util_test: utils.o util_test.o
 	gcc util_test.o utils.o -o util_test
