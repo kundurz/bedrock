@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include "heap_internal.h"
@@ -64,13 +65,14 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
     char* current = start_pointer; 
     char* end_pointer = start_pointer + 4096;
 
-    // Split page up
     struct fast_chunk* prev = NULL;
     while (current != end_pointer) {
         struct fast_chunk* current_fast_chunk = (struct fast_chunk*)current; 
-        
+
         if (prev != NULL) {
             prev->fd = current_fast_chunk;
+        } else {
+            *bin = current_fast_chunk;
         }
 
         current_fast_chunk->allocated = 0;
@@ -80,7 +82,14 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
         prev = current_fast_chunk;
         current += size_class;
     }
+}
 
+void print_list(struct fast_chunk* hd) {
+    struct fast_chunk* curr = hd;
+    while (curr != NULL) {
+        printf("%d -> ", curr->size_class);
+        curr = curr->fd;
+    }
 }
 
 int heap_alloc(int bytes) {

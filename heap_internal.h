@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 
 /* Structs for chunks and metadata  */
@@ -19,4 +21,7 @@ struct large_chunk
 };
 
 /* Internal heap functions */
-int heap_init();
+int _heap_init();
+void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin); 
+int heap_alloc(int bytes); 
+void print_list(struct fast_chunk* hd); 

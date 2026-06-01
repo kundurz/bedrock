@@ -3,10 +3,6 @@
 #include <stdio.h>
 
 int main() {
-    int return_value = heap_init();
-
-    if (return_value == 0) {
-        printf("So far, success!\n");
-    }
+    int return_value = _heap_init();
     return 0;
 }
