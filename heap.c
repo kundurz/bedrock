@@ -46,11 +46,18 @@ int _heap_init()
     metadata_current = metadata_start;
 
     fast_chunk_bins = (struct fast_chunk**)_metadata_alloc(8 * sizeof(struct fast_chunk*));
+    //_allocate_fast_bin_page(16, &fast_chunk_bins[0]);
+
+    //print_list(fast_chunk_bins[0]);
 
     return 0;
 }
 
+// 64 byte chunks dont = 64 byte space. 
+// I need to account for metadata, but I'll do that after.
 void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
+
+    // Allocate a new page for whichever bin we are dealing with.
     char* new_page = (char*)mmap(
         NULL, 
         4096, 
@@ -65,7 +72,7 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
     char* end_pointer = start_pointer + 4096;
 
     struct fast_chunk* prev = NULL;
-    while (current != end_pointer) {
+    while (current < end_pointer) {
         struct fast_chunk* current_fast_chunk = (struct fast_chunk*)current; 
 
         if (prev != NULL) {
@@ -74,37 +81,46 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
             *bin = current_fast_chunk;
         }
 
-        current_fast_chunk->allocated = 0;
         current_fast_chunk->size_class = size_class;
         current_fast_chunk->fd = NULL;
 
         prev = current_fast_chunk;
-        current += size_class;
+        current += size_class + sizeof(struct fast_chunk);
     }
+
+
 }
 
 struct fast_chunk* bin_pop(struct fast_chunk** bin) {
     struct fast_chunk* to_pop = *bin;
     *bin = (*bin)->fd;
-    
+
     return to_pop;
 }
 
 void print_list(struct fast_chunk* hd) {
     struct fast_chunk* curr = hd;
+    int counter = 1;
     while (curr != NULL) {
-        printf("%d -> ", curr->size_class);
+        printf("%d: %d\n", counter, curr->size_class);
         curr = curr->fd;
+        counter++;  
     }
 }
 
-int heap_alloc(int bytes) {
+/*
+    Allocates some heap memory for the user.
+*/
+void* heap_alloc(size_t bytes) {
     // determining the fast chunk size.
     int size_class = determine_size_class(bytes); 
-    struct fast_chunk* bin = fast_chunk_bins[get_fast_chunk_index(size_class)];
+    struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
 
-    if (bin == NULL) { 
-        _allocate_fast_bin_page(size_class, &bin);
+    if (*bin == NULL) { 
+        _allocate_fast_bin_page(size_class, bin);
     } 
 
+    struct fast_chunk* allocated_chunk = bin_pop(bin);
+ 
+    return allocated_chunk + sizeof(struct fast_chunk);
 }
