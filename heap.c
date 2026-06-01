@@ -59,7 +59,8 @@ int _heap_init()
     _allocate_fast_bin_page() is a function called to get more memory
     when a given fast bin is empty (there are no more chunks). 
 */
-void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
+void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) 
+{
 
     // Allocate a new page for whichever bin we are dealing with.
     char* new_page = (char*)mmap(
@@ -103,9 +104,10 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) {
 }
 
 /*
-    bin pop pops a chunk off of a fast chunk bin and returns it. 
+    bin_pop() pops a chunk off of a fast chunk bin and returns it. 
 */
-struct fast_chunk* bin_pop(struct fast_chunk** bin) {
+struct fast_chunk* bin_pop(struct fast_chunk** bin) 
+{
 
     // Pop off an entry from the head; then set a new head.
     struct fast_chunk* to_pop = *bin;
@@ -116,9 +118,20 @@ struct fast_chunk* bin_pop(struct fast_chunk** bin) {
 }
 
 /*
+    bin_push() pushes a chunk onto a fast chunk bin and returns it.
+*/
+void bin_push(struct fast_chunk* to_push, struct fast_chunk** bin) 
+{
+    // Setting to_push as the head of the list.
+    to_push->fd = *bin;
+    *bin = to_push;
+}
+
+/*
     Function used for debugging.
 */
-void print_list(struct fast_chunk* hd) {
+void print_list(struct fast_chunk* hd) 
+{
     struct fast_chunk* curr = hd;
     int counter = 1;
     while (curr != NULL) {
@@ -131,8 +144,8 @@ void print_list(struct fast_chunk* hd) {
 /*
     Allocates some heap memory for the user.
 */
-void* heap_alloc(size_t bytes) {
-
+void* heap_alloc(size_t bytes) 
+{
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
     struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
@@ -145,4 +158,16 @@ void* heap_alloc(size_t bytes) {
     // Return user data region of allocated chunk.
     struct fast_chunk* allocated_chunk = bin_pop(bin);
     return allocated_chunk + sizeof(struct fast_chunk);
+}
+
+/*
+    heap_free() is an interface for the user to free heap memory.
+*/
+void heap_free(void* ptr) 
+{
+    // Peer into metadata
+    struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
+    struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
+
+    bin_push(fast_chunk, bin);
 }

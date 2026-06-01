@@ -24,3 +24,4 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin);
 void* heap_alloc(size_t bytes); 
 void print_list(struct fast_chunk* hd); 
 struct fast_chunk* bin_pop(struct fast_chunk** bin);
+void heap_free(void* ptr);
