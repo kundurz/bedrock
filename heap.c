@@ -55,7 +55,7 @@ int _heap_init()
     //print_list(fast_chunk_bins[0]);
 
     // Allocate large chunk bins on the heap.
-    large_chunk_bin = (struct large_chunk_bin**)_metadata_alloc(sizeof(struct large_chunk*));
+    large_chunk_bin = (struct large_chunk**)_metadata_alloc(sizeof(struct large_chunk*));
 
     return 0;
 }
@@ -254,12 +254,11 @@ void* heap_alloc(size_t bytes)
         // Search for a valid size large chunk.
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
         if (chunk == NULL) {
-            chunk = _allocate_large_bin_chunk(bytes, *large_chunk_bin);
+            chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin);
         } 
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
-
-        return (void*)chunk;
+        return (void*)(chunk + sizeof(struct large_chunk));
     }
 }
 
@@ -268,9 +267,9 @@ void* heap_alloc(size_t bytes)
 */
 void heap_free(void* ptr) 
 {
+    // We're going to need some way to check the size. 
     // Peer into metadata
     struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
     struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
-
     bin_push(fast_chunk, bin);
 }

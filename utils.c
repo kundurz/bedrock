@@ -23,7 +23,7 @@ int determine_size_class(int size) {
     for (unsigned int i = 16; i <= 2048; i = i * 2) {
         size = size & ~i;
         if (size == 0) return i; 
-        if (size < i) return i * 2;
+        if (size < i) return (i * 2 > 2048) ? -1 : i * 2;
     }
 
     return -1; 
