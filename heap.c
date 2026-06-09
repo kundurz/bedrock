@@ -72,8 +72,9 @@ int _heap_init()
 
     This is done because it is simplest, but I may opt for a more secure method later. 
 */
-void _allocate_large_bin_chunk(int size, struct large_chunk** bin) 
+struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin) 
 {
+    size += sizeof(struct large_chunk);
     char* new_page = (char*)mmap(
         NULL, 
         size, 
@@ -83,17 +84,64 @@ void _allocate_large_bin_chunk(int size, struct large_chunk** bin)
         0
     );
 
-    // I nee_classd to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
+    // I need to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
     struct large_chunk* new_chunk = (struct large_chunk*)new_page;
     new_chunk->size = round_to_nearest_page(size);
     
     if ((*bin) != NULL)
         (*bin)->bk = new_chunk;
 
+    new_chunk->prevFree = 0;
+    new_chunk->prevSize = -1;
     new_chunk->fd = *bin;
     new_chunk->bk = NULL;
 
     *bin = new_chunk;
+
+    return new_chunk;
+}
+
+/*
+    _search_large_bin() goes through the large bin to
+*/
+struct large_chunk* _search_large_bin_first_fit(int size) {
+    struct large_chunk* curr = *large_chunk_bin;
+
+    // I'll start with first fit for simplicity.
+    while (curr != NULL) {
+        if (curr->size >= size) {
+            return curr;
+        }
+        curr = curr->fd;
+    }
+
+    return NULL;
+}
+
+/*
+    _split_large_chunk() will modify chunk such that 
+    size bytes are split off of it. 
+
+    chunk is modified with a new size. 
+*/
+void _split_large_chunk(struct large_chunk* chunk, int size) {
+    // We subtract the size of the chunk we want
+    // Then we subtract the size of a header because
+    // the new chunk will have to have a header added to it as well.
+    size_t new_size = chunk->size - size - sizeof(struct large_chunk);
+
+    char* free_space = ((char*)chunk + sizeof(struct large_chunk));
+    struct large_chunk* split_chunk = (struct large_chunk*)(free_space + size);
+
+    split_chunk->fd = chunk->fd;
+    split_chunk->bk = chunk;
+    split_chunk->prevSize = size;
+    split_chunk->prevFree = 0;
+
+    chunk->fd = split_chunk; 
+    chunk->size = size;
+    chunk->prevFree = 0; 
+    chunk->prevSize = -1;
 }
 
 
@@ -201,9 +249,17 @@ void* heap_alloc(size_t bytes)
 
         // Return user data region of allocated chunk.
         struct fast_chunk* allocated_chunk = bin_pop(bin);
-        return allocated_chunk + sizeof(struct fast_chunk);
+        return (void*)(allocated_chunk + sizeof(struct fast_chunk));
     } else {
-        ;
+        // Search for a valid size large chunk.
+        struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
+        if (chunk == NULL) {
+            chunk = _allocate_large_bin_chunk(bytes, *large_chunk_bin);
+        } 
+
+        _split_large_chunk(chunk, bytes); // chunk is now the correct size
+
+        return (void*)chunk;
     }
 }
 
