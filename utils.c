@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 /*
     Determines the fast chunk size class 
     a size request would correspond to. 
@@ -48,4 +50,8 @@ int get_fast_chunk_index(int size_class) {
         default:
             return -1; // Something went wrong.
     }
+}
+
+size_t round_to_nearest_page(int num) {
+    return (num + 4095) & ~(size_t)4095;
 }
