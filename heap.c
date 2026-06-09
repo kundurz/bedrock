@@ -55,6 +55,44 @@ int _heap_init()
 
     return 0;
 }
+
+/*
+    _allocate_large_bin_chunk() allocates and initializes a new large bin chunk
+    and places at the beginning of the large bin.
+
+    List before:
+    Large bin --> chunk1 <--> chunk2 --> NULL
+    
+    List After:
+    Large bin --> new chunk <--> chunk1 <--> chunk2 --> NULL
+
+    This is done because it is simplest, but I may opt for a more secure method later. 
+*/
+void _allocate_large_bin_chunk(int size, struct large_chunk** bin) 
+{
+    char* new_page = (char*)mmap(
+        NULL, 
+        size, 
+        PROT_READ | PROT_WRITE, 
+        MAP_PRIVATE | MAP_ANON, 
+        -1,
+        0
+    );
+
+    // I nee_classd to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
+    struct large_chunk* new_chunk = (struct large_chunk*)new_page;
+    new_chunk->size = round_to_nearest_page(size);
+    
+    if ((*bin) != NULL)
+        (*bin)->bk = new_chunk;
+
+    new_chunk->fd = *bin;
+    new_chunk->bk = NULL;
+
+    *bin = new_chunk;
+}
+
+
 /*
     _allocate_fast_bin_page() is a function called to get more memory
     when a given fast bin is empty (there are no more chunks). 
