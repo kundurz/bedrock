@@ -6,7 +6,8 @@
 #include "heap_internal.h"
 #include "utils.h"
 
-struct fast_chunk **fast_chunk_bins;
+struct fast_chunk** fast_chunk_bins;
+struct large_chunk** large_chunk_bin;
 
 char* metadata_start;
 char* metadata_current;
@@ -52,6 +53,9 @@ int _heap_init()
     fast_chunk_bins = (struct fast_chunk**)_metadata_alloc(8 * sizeof(struct fast_chunk*));
     //_allocate_fast_bin_page(16, &fast_chunk_bins[0]);
     //print_list(fast_chunk_bins[0]);
+
+    // Allocate large chunk bins on the heap.
+    large_chunk_bin = (struct large_chunk_bin**)_metadata_alloc(sizeof(struct large_chunk*));
 
     return 0;
 }
@@ -186,16 +190,21 @@ void* heap_alloc(size_t bytes)
 {
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
-    struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
 
-    // If the relevant size class bin is empty, fill it up again.
-    if (*bin == NULL) { 
-        _allocate_fast_bin_page(size_class, bin);
-    } 
+    if (size_class != -1) {
+        struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
 
-    // Return user data region of allocated chunk.
-    struct fast_chunk* allocated_chunk = bin_pop(bin);
-    return allocated_chunk + sizeof(struct fast_chunk);
+        // If the relevant size class bin is empty, fill it up again.
+        if (*bin == NULL) { 
+            _allocate_fast_bin_page(size_class, bin);
+        } 
+
+        // Return user data region of allocated chunk.
+        struct fast_chunk* allocated_chunk = bin_pop(bin);
+        return allocated_chunk + sizeof(struct fast_chunk);
+    } else {
+        ;
+    }
 }
 
 /*
