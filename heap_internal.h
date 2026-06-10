@@ -3,22 +3,34 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/* Struct that contains the start and end address for a mmaped region */
+struct span 
+{
+    void* start; 
+    void* end;
+};
+
 /* Structs for chunks and metadata  */
+/* Size must be at the end of both structs so that pointer arithmetic
+may be used to determine the size of */
 struct fast_chunk
 {
-    uint16_t size_class;
     struct fast_chunk *fd;
+    uint64_t size_class;
 }; // you just add this size to the allocated chunk and there's the user data!
 
 /* Structs for large chunks */
 struct large_chunk
 {
-    int prevFree;    // Also adjacent in memory.
-    size_t prevSize; // Adjacent in memory
-    uint64_t size;
+    struct span span;
+    size_t prev_size;
+    int allocated; // 0 if free, 1 if allocated. 
     struct large_chunk *fd;
     struct large_chunk *bk;
+    uint64_t size;
 };
+
+
 
 /* Internal heap functions */
 int _heap_init();

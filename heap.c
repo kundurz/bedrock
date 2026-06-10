@@ -91,10 +91,11 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
     if ((*bin) != NULL)
         (*bin)->bk = new_chunk;
 
-    new_chunk->prevFree = 0;
-    new_chunk->prevSize = -1;
+    new_chunk->allocated = 0;
     new_chunk->fd = *bin;
     new_chunk->bk = NULL;
+    new_chunk->span.start = new_page;
+    new_chunk->span.end = (char*)new_page + new_chunk->size;
 
     *bin = new_chunk;
 
@@ -135,15 +136,23 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
 
     split_chunk->fd = chunk->fd;
     split_chunk->bk = chunk;
-    split_chunk->prevSize = size;
-    split_chunk->prevFree = 0;
+    split_chunk->allocated = 0;
+    split_chunk->prev_size = size;
+    split_chunk->span = chunk->span;
 
     chunk->fd = split_chunk; 
     chunk->size = size;
-    chunk->prevFree = 0; 
-    chunk->prevSize = -1;
+    chunk->allocated = 0; 
+    chunk->prev_size = -1;
 }
 
+/*
+    _merge_two_large_chunks() 
+*/
+void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chunk2) {
+    chunk1->size += chunk2->size + sizeof(struct large_chunk);
+    chunk1->fd = chunk2->fd;
+}
 
 /*
     _allocate_fast_bin_page() is a function called to get more memory
@@ -189,8 +198,6 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin)
         // Additiona accounts for desires size as well as metadata. 
         current += size_class + sizeof(struct fast_chunk);
     }
-
-
 }
 
 /*
@@ -258,6 +265,12 @@ void* heap_alloc(size_t bytes)
         } 
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
+
+        // Now need to modify the free list. 
+        chunk->bk->fd = chunk->fd;
+        chunk->fd->bk = chunk->bk;
+        chunk->allocated = 1;
+
         return (void*)(chunk + sizeof(struct large_chunk));
     }
 }
@@ -267,9 +280,30 @@ void* heap_alloc(size_t bytes)
 */
 void heap_free(void* ptr) 
 {
-    // We're going to need some way to check the size. 
-    // Peer into metadata
-    struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
-    struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
-    bin_push(fast_chunk, bin);
+    int size = *((char*)ptr - sizeof(uint64_t));
+
+    if (size <= 2048) {
+        // We're going to need some way to check the size. 
+        // Peer into metadata
+        struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
+        struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
+        bin_push(fast_chunk, bin);
+    } else {
+        struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
+        
+        struct large_chunk* forward_adj_chunk = (char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size;
+        struct large_chunk* backward_adj_chunk = (char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk);  
+        
+        large_chunk->bk->fd = large_chunk;
+        large_chunk->fd->bk = large_chunk;
+
+        if (forward_adj_chunk < large_chunk->span.end) {
+            _merge_two_large_chunks(large_chunk, forward_adj_chunk);
+        }
+        
+        if (backward_adj_chunk >= large_chunk->span.start) {
+            _merge_two_large_chunks(backward_adj_chunk, large_chunk);
+        }
+
+    }
 }
