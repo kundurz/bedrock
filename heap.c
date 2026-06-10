@@ -297,11 +297,11 @@ void heap_free(void* ptr)
         large_chunk->bk->fd = large_chunk;
         large_chunk->fd->bk = large_chunk;
 
-        if (forward_adj_chunk < large_chunk->span.end) {
+        if (forward_adj_chunk < large_chunk->span.end && forward_adj_chunk->allocated == 0) {
             _merge_two_large_chunks(large_chunk, forward_adj_chunk);
         }
         
-        if (backward_adj_chunk >= large_chunk->span.start) {
+        if (backward_adj_chunk >= large_chunk->span.start && backward_adj_chunk->allocated == 0) {
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
 
