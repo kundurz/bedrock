@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <stddef.h>
 #include "heap_internal.h"
 #include "utils.h"
 
@@ -232,7 +233,6 @@ void print_list(struct fast_chunk* hd)
     struct fast_chunk* curr = hd;
     int counter = 1;
     while (curr != NULL) {
-        printf("%d: %d\n", counter, curr->size_class);
         curr = curr->fd;
         counter++;  
     }
@@ -267,8 +267,7 @@ void* heap_alloc(size_t bytes)
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
 
         // Now need to modify the free list. 
-        chunk->bk->fd = chunk->fd;
-        chunk->fd->bk = chunk->bk;
+        chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
         chunk->allocated = 1;
 
         return (void*)(chunk + sizeof(struct large_chunk));
@@ -280,7 +279,13 @@ void* heap_alloc(size_t bytes)
 */
 void heap_free(void* ptr) 
 {
-    int size = *((char*)ptr - sizeof(uint64_t));
+    uint64_t size = *(uint64_t *)(
+    (char*)ptr
+    - sizeof(struct large_chunk)
+    + offsetof(struct large_chunk, size)
+    );
+
+    printf("%ld\n", size); // It still says the size is 0, that's an odd bug!
 
     if (size <= 2048) {
         // We're going to need some way to check the size. 
@@ -289,19 +294,26 @@ void heap_free(void* ptr)
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
         bin_push(fast_chunk, bin);
     } else {
+        puts("right area!");
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
         
-        struct large_chunk* forward_adj_chunk = (char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size;
-        struct large_chunk* backward_adj_chunk = (char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk);  
+        struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
+        struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk));  
         
-        large_chunk->bk->fd = large_chunk;
-        large_chunk->fd->bk = large_chunk;
+        if (large_chunk->bk != NULL)
+            large_chunk->bk->fd = large_chunk;
+        if (large_chunk->fd != NULL)
+            large_chunk->fd->bk = large_chunk;
 
-        if (forward_adj_chunk < large_chunk->span.end && forward_adj_chunk->allocated == 0) {
+        puts("survived the linked list check");
+
+        if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0) {
+            puts("forward merge!");
             _merge_two_large_chunks(large_chunk, forward_adj_chunk);
         }
         
-        if (backward_adj_chunk >= large_chunk->span.start && backward_adj_chunk->allocated == 0) {
+        if (backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0) {
+            puts("backward merge!"); 
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
 
