@@ -19,17 +19,17 @@
     -1 indicates that the requested chunk is actually a large
     chunk.
 */
-int determine_size_class(int size) {
-    if (size < 16) {
+int determine_size_class(int size)
+{
+    if (size <= 16)
         return 16;
-    }
-    for (unsigned int i = 16; i <= 2048; i = i * 2) {
-        size = size & ~i;
-        if (size == 0) return i; 
-        if (size < i) return (i * 2 > 2048) ? -1 : i * 2;
-    }
 
-    return -1; 
+    int cls = 16;
+
+    while (cls < size && cls < 2048)
+        cls <<= 1;
+
+    return (cls > 2048) ? -1 : cls;
 }
 
 int get_fast_chunk_index(int size_class) {
