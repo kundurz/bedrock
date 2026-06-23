@@ -16,6 +16,9 @@ char* metadata_end;
 
 
 void print_large_bin_contents() {
+
+    return;
+
     struct large_chunk* curr = *large_chunk_bin;
 
     while (curr != NULL) {
@@ -175,7 +178,6 @@ void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chu
 */
 void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) 
 {
-
     // Allocate a new page for whichever bin we are dealing with.
     char* new_page = (char*)mmap(
         NULL, 
@@ -259,6 +261,7 @@ void* heap_alloc(size_t bytes)
 {
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
+    printf("actual size = %d\n", size_class);
 
     if (size_class != -1) {
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
@@ -288,6 +291,7 @@ void* heap_alloc(size_t bytes)
         print_large_bin_contents();
 
         // Now need to modify the free list. 
+        *large_chunk_bin = chunk->fd;
         chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
         chunk->allocated = 1;
 
@@ -317,7 +321,7 @@ void heap_free(void* ptr)
         bin_push(fast_chunk, bin);
     } else {
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
-        
+
         struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
         struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk));  
         
@@ -326,6 +330,7 @@ void heap_free(void* ptr)
         if (large_chunk->fd != NULL)
             large_chunk->fd->bk = large_chunk;
 
+        *large_chunk_bin = large_chunk;
 
         if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0) {
             _merge_two_large_chunks(large_chunk, forward_adj_chunk);
@@ -335,4 +340,6 @@ void heap_free(void* ptr)
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
     }
+
+    puts("Makes it to the end of heapfree!");
 }
