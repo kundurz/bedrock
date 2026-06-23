@@ -30,8 +30,6 @@ struct large_chunk
     uint64_t size;
 };
 
-
-
 /* Internal heap functions */
 int _heap_init();
 void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin); 
@@ -42,3 +40,4 @@ void print_list(struct fast_chunk* hd);
 struct large_chunk* _search_large_bin_first_fit(int size); 
 struct fast_chunk* bin_pop(struct fast_chunk** bin);
 void heap_free(void* ptr);
+void print_large_bin_contents(); 

@@ -14,6 +14,19 @@ char* metadata_start;
 char* metadata_current;
 char* metadata_end;
 
+
+void print_large_bin_contents() {
+    struct large_chunk* curr = *large_chunk_bin;
+
+    while (curr != NULL) {
+        printf(" | size = %ld | <->", curr->size);
+
+        curr = curr->fd;
+    }
+
+    printf(" NULL\n");
+}
+
 /* 
     _metadata_alloc() allocates memory space
     for heap metadata and related data structures.
@@ -88,7 +101,6 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
     // I need to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
     struct large_chunk* new_chunk = (struct large_chunk*)new_page;
     new_chunk->size = round_to_nearest_page(size);
-    printf("new chunk size is: %d\n", new_chunk->size);
     
     if ((*bin) != NULL)
         (*bin)->bk = new_chunk;
@@ -141,6 +153,7 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     split_chunk->allocated = 0;
     split_chunk->prev_size = size;
     split_chunk->span = chunk->span;
+    split_chunk->size = new_size;
 
     chunk->fd = split_chunk; 
     chunk->size = size;
@@ -261,19 +274,24 @@ void* heap_alloc(size_t bytes)
     } else {
         // Search for a valid size large chunk.
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
+
+        print_large_bin_contents();
+
         if (chunk == NULL) {
             chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin);
+            print_large_bin_contents(); 
         } 
 
-        printf("chunk size right before split: %d\n", chunk->size);
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
 
-        printf("chunk size after the split: %d\n", chunk->size);
+        print_large_bin_contents();
 
         // Now need to modify the free list. 
         chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
         chunk->allocated = 1;
+
+        print_large_bin_contents();
 
         return (void*)((char*)chunk + sizeof(struct large_chunk));
     }
@@ -290,7 +308,6 @@ void heap_free(void* ptr)
     + offsetof(struct large_chunk, size)
     );
 
-    printf("%ld\n", size); // It still says the size is 0, that's an odd bug!
 
     if (size <= 2048) {
         // We're going to need some way to check the size. 
@@ -299,7 +316,6 @@ void heap_free(void* ptr)
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
         bin_push(fast_chunk, bin);
     } else {
-        puts("right area!");
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
         
         struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
@@ -310,17 +326,13 @@ void heap_free(void* ptr)
         if (large_chunk->fd != NULL)
             large_chunk->fd->bk = large_chunk;
 
-        puts("survived the linked list check");
 
         if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0) {
-            puts("forward merge!");
             _merge_two_large_chunks(large_chunk, forward_adj_chunk);
         }
         
         if (backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0) {
-            puts("backward merge!"); 
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
-
     }
 }

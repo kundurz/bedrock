@@ -20,6 +20,9 @@
     chunk.
 */
 int determine_size_class(int size) {
+    if (size < 16) {
+        return 16;
+    }
     for (unsigned int i = 16; i <= 2048; i = i * 2) {
         size = size & ~i;
         if (size == 0) return i; 
