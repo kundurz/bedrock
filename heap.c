@@ -43,7 +43,7 @@ int _heap_init()
     // Check if mmap worked.
     if (metadata_start == MAP_FAILED) {
         perror("mmap: MAP FAILED");
-        return -1;
+        return -1; 
     }
 
     // Pointers for managing heap metadata's memory.
@@ -88,6 +88,7 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
     // I need to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
     struct large_chunk* new_chunk = (struct large_chunk*)new_page;
     new_chunk->size = round_to_nearest_page(size);
+    printf("new chunk size is: %d\n", new_chunk->size);
     
     if ((*bin) != NULL)
         (*bin)->bk = new_chunk;
@@ -256,7 +257,7 @@ void* heap_alloc(size_t bytes)
 
         // Return user data region of allocated chunk.
         struct fast_chunk* allocated_chunk = bin_pop(bin);
-        return (void*)(allocated_chunk + sizeof(struct fast_chunk));
+        return (void*)((char*)allocated_chunk + sizeof(struct fast_chunk));
     } else {
         // Search for a valid size large chunk.
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
@@ -264,13 +265,17 @@ void* heap_alloc(size_t bytes)
             chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin);
         } 
 
+        printf("chunk size right before split: %d\n", chunk->size);
+
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
+
+        printf("chunk size after the split: %d\n", chunk->size);
 
         // Now need to modify the free list. 
         chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
         chunk->allocated = 1;
 
-        return (void*)(chunk + sizeof(struct large_chunk));
+        return (void*)((char*)chunk + sizeof(struct large_chunk));
     }
 }
 
