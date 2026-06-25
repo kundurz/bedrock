@@ -170,8 +170,13 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     In merge we'll have to remove one from the list and keep the other...
 */
 void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chunk2) {
-    chunk1->size += chunk2->size;
-    chunk1->fd = chunk2->fd;
+    chunk1->size += chunk2->size; // We can now use the header from chunk2 as free space
+    
+    // Removing chunk 2 from the list
+    if (chunk2->fd != NULL)
+        chunk2->fd->bk = chunk2->bk;
+    if (chunk2->bk != NULL)
+        chunk2->bk->fd = chunk2->fd;
 }
 
 /*
