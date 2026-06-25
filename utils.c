@@ -21,6 +21,7 @@
 */
 int determine_size_class(int size)
 {
+    if (size > 2048) return -1;
     if (size <= 16)
         return 16;
 
