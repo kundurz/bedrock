@@ -16,9 +16,6 @@ char* metadata_end;
 
 
 void print_large_bin_contents() {
-
-    return;
-
     struct large_chunk* curr = *large_chunk_bin;
 
     while (curr != NULL) {
@@ -103,7 +100,7 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
 
     // I need to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
     struct large_chunk* new_chunk = (struct large_chunk*)new_page;
-    new_chunk->size = round_to_nearest_page(size);
+    new_chunk->size = round_to_nearest_page(size) - sizeof(struct large_chunk);
     
     if ((*bin) != NULL)
         (*bin)->bk = new_chunk;
@@ -146,7 +143,10 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     // We subtract the size of the chunk we want
     // Then we subtract the size of a header because
     // the new chunk will have to have a header added to it as well.
-    size_t new_size = chunk->size - size - sizeof(struct large_chunk);
+    if (chunk->size - size < sizeof(struct large_chunk)) 
+        return;
+
+    size_t new_size = chunk->size - size; 
 
     char* free_space = ((char*)chunk + sizeof(struct large_chunk));
     struct large_chunk* split_chunk = (struct large_chunk*)(free_space + size);
@@ -166,9 +166,11 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
 
 /*
     _merge_two_large_chunks() 
+
+    In merge we'll have to remove one from the list and keep the other...
 */
 void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chunk2) {
-    chunk1->size += chunk2->size + sizeof(struct large_chunk);
+    chunk1->size += chunk2->size;
     chunk1->fd = chunk2->fd;
 }
 
@@ -261,7 +263,6 @@ void* heap_alloc(size_t bytes)
 {
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
-    printf("actual size = %d\n", size_class);
 
     if (size_class != -1) {
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
@@ -276,25 +277,27 @@ void* heap_alloc(size_t bytes)
         return (void*)((char*)allocated_chunk + sizeof(struct fast_chunk));
     } else {
         // Search for a valid size large chunk.
+        puts("=== SEARCHING ==="); 
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
-
         print_large_bin_contents();
 
         if (chunk == NULL) {
+            puts("=== ALLOCATING ===");
             chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin);
-            print_large_bin_contents(); 
+            print_large_bin_contents();
         } 
 
-
+        puts("=== SPLITTING ===");
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
-
         print_large_bin_contents();
 
+
+        puts("=== REMOVING SPLIT CHUNK FROM FREE LIST ===");
         // Now need to modify the free list. 
         *large_chunk_bin = chunk->fd;
-        chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
+        if (chunk->fd != NULL)
+            chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
         chunk->allocated = 1;
-
         print_large_bin_contents();
 
         return (void*)((char*)chunk + sizeof(struct large_chunk));
@@ -320,18 +323,20 @@ void heap_free(void* ptr)
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
         bin_push(fast_chunk, bin);
     } else {
+        // There's some bug here with list re-insertion.
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
 
         struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
         struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk));  
-        
-        if (large_chunk->bk != NULL)
-            large_chunk->bk->fd = large_chunk;
-        if (large_chunk->fd != NULL)
-            large_chunk->fd->bk = large_chunk;
 
+        if (*large_chunk_bin != NULL) 
+            (*large_chunk_bin)->bk = large_chunk;
+
+        large_chunk->fd = *(large_chunk_bin);
         *large_chunk_bin = large_chunk;
-
+        
+        puts("==== BEFORE MERGE ====");
+        print_large_bin_contents();
         if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0) {
             _merge_two_large_chunks(large_chunk, forward_adj_chunk);
         }
@@ -339,7 +344,9 @@ void heap_free(void* ptr)
         if (backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0) {
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
+
+        puts("==== POST MERGE ====");
+        print_large_bin_contents();
     }
 
-    puts("Makes it to the end of heapfree!");
 }
