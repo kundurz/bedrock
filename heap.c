@@ -298,11 +298,16 @@ void* heap_alloc(size_t bytes)
 
 
         puts("=== REMOVING SPLIT CHUNK FROM FREE LIST ===");
+
         // Now need to modify the free list. 
-        *large_chunk_bin = chunk->fd;
+        if (chunk->bk == NULL) // In the case that it is the first chunk.
+            *large_chunk_bin = chunk->fd;
         if (chunk->fd != NULL)
             chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
+        if (chunk->bk != NULL)
+            chunk->bk->fd = chunk->fd;
         chunk->allocated = 1;
+
         print_large_bin_contents();
 
         return (void*)((char*)chunk + sizeof(struct large_chunk));
@@ -338,6 +343,7 @@ void heap_free(void* ptr)
             (*large_chunk_bin)->bk = large_chunk;
 
         large_chunk->fd = *(large_chunk_bin);
+        large_chunk->bk = NULL;
         *large_chunk_bin = large_chunk;
         
         puts("==== BEFORE MERGE ====");
