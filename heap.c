@@ -167,16 +167,33 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
 /*
     _merge_two_large_chunks() 
 
-    In merge we'll have to remove one from the list and keep the other...
+    Assuming chunk1 at a lower address than chunk2
 */
 void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chunk2) {
-    chunk1->size += chunk2->size; // We can now use the header from chunk2 as free space
     
-    // Removing chunk 2 from the list
-    if (chunk2->fd != NULL)
-        chunk2->fd->bk = chunk2->bk;
-    if (chunk2->bk != NULL)
+    // UPDATE RELEVANT METADATA
+    chunk1->size += chunk2->size + sizeof(struct large_chunk); // We can now use the header from chunk2 as free space
+    struct large_chunk* next = (char*)chunk1 + sizeof(struct large_chunk) + chunk1->size;
+
+    if ((char*)next < (char*)chunk1->span.end) {
+        next->prev_size = chunk1->size;
+    }
+
+    if (chunk2->bk != NULL) {
         chunk2->bk->fd = chunk2->fd;
+    } else {
+        *large_chunk_bin = chunk2->fd;
+    }
+
+    if (chunk2->fd != NULL) {
+        chunk2->fd->bk = chunk2->bk;
+    }
+
+    chunk2->fd = NULL;
+    chunk2->bk = NULL;
+
+    // It may be beneifical to zero out chunk 2's metadata at some point,
+    chunk1->allocated = 0;
 }
 
 /*
@@ -348,13 +365,20 @@ void heap_free(void* ptr)
         
         puts("==== BEFORE MERGE ====");
         print_large_bin_contents();
-        if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0) {
-            _merge_two_large_chunks(large_chunk, forward_adj_chunk);
+
+        int merge_occurred = 0; 
+        if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0 && forward_adj_chunk->size > 0) {
+            merge_occurred = 1;
+            puts("Forward merge occurring!");
+            _merge_two_large_chunks(large_chunk, forward_adj_chunk); // I think it matters the order in which you merge the chunks. Whichever has the lower memory address should be the one that stays in the list.
         }
         
-        if (backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0) {
+        if (large_chunk->prev_size != -1 && backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0 && backward_adj_chunk->size > 0) {
+            merge_occurred = 1;
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
+
+        if (!merge_occurred) large_chunk->allocated = 0;
 
         puts("==== POST MERGE ====");
         print_large_bin_contents();
