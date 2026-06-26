@@ -109,7 +109,8 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
     new_chunk->fd = *bin;
     new_chunk->bk = NULL;
     new_chunk->span.start = new_page;
-    new_chunk->span.end = (char*)new_page + new_chunk->size;
+    new_chunk->span.end = (char*)new_page + new_chunk->size + sizeof(struct large_chunk);
+    new_chunk->prev_size = -1;
 
     *bin = new_chunk;
 
@@ -156,12 +157,11 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     split_chunk->allocated = 0;
     split_chunk->prev_size = size;
     split_chunk->span = chunk->span;
-    split_chunk->size = new_size;
+    split_chunk->size = new_size - sizeof(struct large_chunk);
 
     chunk->fd = split_chunk; 
     chunk->size = size;
     chunk->allocated = 0; 
-    chunk->prev_size = -1;
 }
 
 /*
