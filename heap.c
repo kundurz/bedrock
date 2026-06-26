@@ -19,7 +19,7 @@ void print_large_bin_contents() {
     struct large_chunk* curr = *large_chunk_bin;
 
     while (curr != NULL) {
-        printf(" | size = %ld | <->", curr->size);
+        printf(" | size = %ld | -> ", curr->size);
 
         curr = curr->fd;
     }
@@ -98,7 +98,7 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
         0
     );
 
-    // I need to turn this into a validcomamnd_log chunk, first I need to round up to the next page size, 
+    // I need to turn this into a valid chunk, first I need to round up to the next page size, 
     struct large_chunk* new_chunk = (struct large_chunk*)new_page;
     new_chunk->size = round_to_nearest_page(size) - sizeof(struct large_chunk);
     
@@ -144,6 +144,7 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     // We subtract the size of the chunk we want
     // Then we subtract the size of a header because
     // the new chunk will have to have a header added to it as well.
+    // chunk->size is used because we count up to "size" bytes starting from the user data section.
     if (chunk->size - size < sizeof(struct large_chunk)) 
         return;
 
@@ -300,12 +301,12 @@ void* heap_alloc(size_t bytes)
     } else {
         // Search for a valid size large chunk.
         puts("=== SEARCHING ==="); 
-        struct large_chunk* chunk = _search_large_bin_first_fit(bytes);
+        struct large_chunk* chunk = _search_large_bin_first_fit(bytes); // Looks ok 
         print_large_bin_contents();
 
         if (chunk == NULL) {
             puts("=== ALLOCATING ===");
-            chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin);
+            chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin); 
             print_large_bin_contents();
         } 
 
@@ -350,11 +351,12 @@ void heap_free(void* ptr)
         struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
         bin_push(fast_chunk, bin);
     } else {
-        // There's some bug here with list re-insertion.
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
 
         struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
-        struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk));  
+
+        // We subtract sizeof(struct large chunk) twice because we need to get to the BEGINNING of the previous chunk.
+        struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk)); 
 
         if (*large_chunk_bin != NULL) 
             (*large_chunk_bin)->bk = large_chunk;

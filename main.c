@@ -10,7 +10,6 @@
 int main(void)
 {
 
-    printf("Initializing heap...\n");
     _heap_init();
     /* FAST BIN TESTS */
 
@@ -52,23 +51,63 @@ int main(void)
     // 4) Ensuring we can write to the region of memory allocated, as well as read from it.
     // Then I need to do one large test
 
-    printf("SIZE OF LARGE CHUNK: %ld\n", sizeof(struct large_chunk));
-    // Testing of merging and all 
-    printf("**** FIRST ALLOCATION ****\n");
-    char* my_ptr = (char*)heap_alloc(2049);
+    //printf("SIZE OF LARGE CHUNK: %ld\n", sizeof(struct large_chunk));
+    //// Testing of merging and all 
+    //printf("**** FIRST ALLOCATION ****\n");
+    //char* my_ptr = (char*)heap_alloc(5000);
+    //printf("\n\n\n");
+
+    //printf("**** SECOND ALLOCATION ****\n");
+    //char *my_ptr2 = (char*)heap_alloc(2049);
+    //printf("\n\n\n");
+
+    //printf("****** SECOND FREE ******\n");
+    //heap_free(my_ptr2);
+    //printf("\n\n\n");
+
+    //printf("****** FIRST FREE ******\n");
+    //heap_free(my_ptr);
+    //printf("\n\n\n");
+
+    printf("**** THIRD ALLOCATION ****\n");
+    char *my_ptr = (char*)heap_alloc(10000);
     printf("\n\n\n");
 
-    printf("**** SECOND ALLOCATION ****\n");
-    char *my_ptr2 = (char*)heap_alloc(4035);
-    printf("\n\n\n");
-
-    printf("****** SECOND FREE ******\n");
-    heap_free(my_ptr2);
-    print_large_bin_contents();
-    printf("\n\n\n");
-
-    printf("****** FIRST FREE ******\n");
+    printf("**** THIRD FREE ****\n");
     heap_free(my_ptr);
+    printf("\n\n\n");
+
+    printf("**** FOURTH ALLOCATION ****\n");
+    char* my_ptr2 = (char*)heap_alloc(2049);
+    printf("\n\n\n");
+
+    printf("**** FIFTH ALLOCATION ****\n");
+    char* my_ptr3 = (char*)heap_alloc(2049);
+    printf("\n\n\n");
+
+    printf("**** SIXTH ALLOCATION ****\n");
+    char* my_ptr4 = (char*)heap_alloc(2049);
+    printf("\n\n\n");
+
+    printf("**** SEVENTH ALLOCATION ****\n");
+    char* my_ptr5 = (char*)heap_alloc(5917);
+    printf("\n\n\n");
+
+    printf("**** FORUTH FREE ****\n");
+    heap_free(my_ptr2); 
+    printf("\n\n\n");
+
+    printf("**** SIXTH FREE ****\n");
+    heap_free(my_ptr4);
+    printf("\n\n\n");
+
+    printf("**** FIFTH FREE ****\n");
+    heap_free(my_ptr3);
+    printf("\n\n\n");
+
+
+    printf("**** SEVENTH FREE ****\n");
+    heap_free(my_ptr5);
     printf("\n\n\n");
 
     return 0;
