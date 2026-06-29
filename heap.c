@@ -39,6 +39,15 @@ int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk) 
     return (void*)adj_chunk >= (void*)ref_chunk->span.start && (void*)adj_chunk < (void*)ref_chunk->span.end;
 }
 
+void unlink_large_free_chunk(struct large_chunk* chunk) {
+    if (chunk->bk == NULL) // In the case that it is the first chunk.
+        *large_chunk_bin = chunk->fd;
+    if (chunk->fd != NULL)
+        chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
+    if (chunk->bk != NULL)
+        chunk->bk->fd = chunk->fd;
+    chunk->allocated = 1;
+}
 
 void print_large_bin_contents() {
     struct large_chunk* curr = *large_chunk_bin;
@@ -342,16 +351,9 @@ void* heap_alloc(size_t bytes)
 
 
         puts("=== REMOVING SPLIT CHUNK FROM FREE LIST ===");
+        unlink_large_free_chunk(chunk);
 
         // Now need to modify the free list. 
-        if (chunk->bk == NULL) // In the case that it is the first chunk.
-            *large_chunk_bin = chunk->fd;
-        if (chunk->fd != NULL)
-            chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
-        if (chunk->bk != NULL)
-            chunk->bk->fd = chunk->fd;
-        chunk->allocated = 1;
-
         print_large_bin_contents();
 
         return (void*)((char*)chunk + sizeof(struct large_chunk));

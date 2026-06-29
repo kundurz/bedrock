@@ -46,3 +46,4 @@ void print_large_bin_contents();
 int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk);
 struct large_chunk* prev_physical_chunk(struct large_chunk* chunk); 
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk); 
+void unlink_large_free_chunk(struct large_chunk* chunk); 
