@@ -19,7 +19,7 @@ char* metadata_end;
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
     struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
 
-    if (next < chunk->span.end && next->size > 0)
+    if (chunk_in_span(chunk, next))
         return next;
 
     return NULL;
@@ -28,10 +28,15 @@ struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
 struct large_chunk* prev_physical_chunk(struct large_chunk* chunk) {
     struct large_chunk* prev = (struct large_chunk*)((char*)chunk - sizeof(struct large_chunk) - chunk->prev_size);
 
-    if (chunk->prev_size != -1 && prev >= chunk->span.start && prev->size > 0)
+    if (chunk_in_span(chunk, prev))
         return prev;
 
     return NULL;
+}
+
+int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk) {
+
+    return adj_chunk >= ref_chunk->span.start && adj_chunk < ref_chunk->span.end;
 }
 
 
