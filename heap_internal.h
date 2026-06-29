@@ -41,3 +41,8 @@ struct large_chunk* _search_large_bin_first_fit(int size);
 struct fast_chunk* bin_pop(struct fast_chunk** bin);
 void heap_free(void* ptr);
 void print_large_bin_contents(); 
+
+
+int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk);
+struct large_chunk* prev_physical_chunk(struct large_chunk* chunk); 
+struct large_chunk* next_physical_chunk(struct large_chunk* chunk); 

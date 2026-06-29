@@ -36,7 +36,7 @@ struct large_chunk* prev_physical_chunk(struct large_chunk* chunk) {
 
 int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk) {
 
-    return adj_chunk >= ref_chunk->span.start && adj_chunk < ref_chunk->span.end;
+    return (void*)adj_chunk >= (void*)ref_chunk->span.start && (void*)adj_chunk < (void*)ref_chunk->span.end;
 }
 
 
@@ -48,6 +48,7 @@ void print_large_bin_contents() {
 
         curr = curr->fd;
     }
+
 
     printf(" NULL\n");
 }
@@ -199,7 +200,7 @@ void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chu
     
     // UPDATE RELEVANT METADATA
     chunk1->size += chunk2->size + sizeof(struct large_chunk); // We can now use the header from chunk2 as free space
-    struct large_chunk* next = (char*)chunk1 + sizeof(struct large_chunk) + chunk1->size;
+    struct large_chunk* next = (struct large_chunk*)((char*)chunk1 + sizeof(struct large_chunk) + chunk1->size);
 
     if ((char*)next < (char*)chunk1->span.end) {
         next->prev_size = chunk1->size;
