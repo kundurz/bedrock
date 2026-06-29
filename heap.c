@@ -49,6 +49,15 @@ void unlink_large_free_chunk(struct large_chunk* chunk) {
     chunk->allocated = 1;
 }
 
+void insert_large_free_chunk(struct large_chunk* chunk) {
+    if (*large_chunk_bin != NULL) 
+        (*large_chunk_bin)->bk = chunk;
+
+    chunk->fd = *(large_chunk_bin);
+    chunk->bk = NULL;
+    *large_chunk_bin = chunk;
+}
+
 void print_large_bin_contents() {
     struct large_chunk* curr = *large_chunk_bin;
 
@@ -387,13 +396,9 @@ void heap_free(void* ptr)
         // We subtract sizeof(struct large chunk) twice because we need to get to the BEGINNING of the previous chunk.
         struct large_chunk* backward_adj_chunk = prev_physical_chunk(large_chunk);
 
-        if (*large_chunk_bin != NULL) 
-            (*large_chunk_bin)->bk = large_chunk;
-
-        large_chunk->fd = *(large_chunk_bin);
-        large_chunk->bk = NULL;
-        *large_chunk_bin = large_chunk;
-        
+        // insert_large_free_chunk
+        insert_large_free_chunk(large_chunk);
+                
         puts("==== BEFORE MERGE ====");
         print_large_bin_contents();
 
