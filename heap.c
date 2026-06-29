@@ -15,6 +15,26 @@ char* metadata_current;
 char* metadata_end;
 
 
+/* Heap utility functions for large bin. */
+struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
+    struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
+
+    if (next < chunk->span.end && next->size > 0)
+        return next;
+
+    return NULL;
+}
+
+struct large_chunk* prev_physical_chunk(struct large_chunk* chunk) {
+    struct large_chunk* prev = (struct large_chunk*)((char*)chunk - sizeof(struct large_chunk) - chunk->prev_size);
+
+    if (chunk->prev_size != -1 && prev >= chunk->span.start && prev->size > 0)
+        return prev;
+
+    return NULL;
+}
+
+
 void print_large_bin_contents() {
     struct large_chunk* curr = *large_chunk_bin;
 
@@ -353,10 +373,11 @@ void heap_free(void* ptr)
     } else {
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
 
-        struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
+        //struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
+        struct large_chunk* forward_adj_chunk = next_physical_chunk(large_chunk);
 
         // We subtract sizeof(struct large chunk) twice because we need to get to the BEGINNING of the previous chunk.
-        struct large_chunk* backward_adj_chunk = (struct large_chunk*)((char*)large_chunk - large_chunk->prev_size - sizeof(struct large_chunk)); 
+        struct large_chunk* backward_adj_chunk = prev_physical_chunk(large_chunk);
 
         if (*large_chunk_bin != NULL) 
             (*large_chunk_bin)->bk = large_chunk;
@@ -369,13 +390,12 @@ void heap_free(void* ptr)
         print_large_bin_contents();
 
         int merge_occurred = 0; 
-        if (forward_adj_chunk < (struct large_chunk*)large_chunk->span.end && forward_adj_chunk->allocated == 0 && forward_adj_chunk->size > 0) {
+        if (forward_adj_chunk != NULL && forward_adj_chunk->allocated == 0) {
             merge_occurred = 1;
-            puts("Forward merge occurring!");
             _merge_two_large_chunks(large_chunk, forward_adj_chunk); // I think it matters the order in which you merge the chunks. Whichever has the lower memory address should be the one that stays in the list.
         }
         
-        if (large_chunk->prev_size != -1 && backward_adj_chunk >= (struct large_chunk*)large_chunk->span.start && backward_adj_chunk->allocated == 0 && backward_adj_chunk->size > 0) {
+        if (backward_adj_chunk != NULL && backward_adj_chunk->allocated == 0) {            
             merge_occurred = 1;
             _merge_two_large_chunks(backward_adj_chunk, large_chunk);
         }
@@ -385,5 +405,4 @@ void heap_free(void* ptr)
         puts("==== POST MERGE ====");
         print_large_bin_contents();
     }
-
 }
