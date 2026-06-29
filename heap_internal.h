@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// FOR TESTING
+extern struct fast_chunk **fast_chunk_bins;
+extern struct large_chunk **large_chunk_bin;
+
 /* Struct that contains the start and end address for a mmaped region */
 struct span 
 {
