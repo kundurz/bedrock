@@ -62,7 +62,7 @@ void print_large_bin_contents() {
     struct large_chunk* curr = *large_chunk_bin;
 
     while (curr != NULL) {
-        printf(" | size = %ld | -> ", curr->size);
+        printf(" | size = %ld, next = %p | -> ", curr->size, curr->fd);
 
         curr = curr->fd;
     }
@@ -344,26 +344,16 @@ void* heap_alloc(size_t bytes)
         return (void*)((char*)allocated_chunk + sizeof(struct fast_chunk));
     } else {
         // Search for a valid size large chunk.
-        puts("=== SEARCHING ==="); 
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes); // Looks ok 
-        print_large_bin_contents();
 
         if (chunk == NULL) {
-            puts("=== ALLOCATING ===");
             chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin); 
-            print_large_bin_contents();
         } 
 
-        puts("=== SPLITTING ===");
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
-        print_large_bin_contents();
 
 
-        puts("=== REMOVING SPLIT CHUNK FROM FREE LIST ===");
         unlink_large_free_chunk(chunk);
-
-        // Now need to modify the free list. 
-        print_large_bin_contents();
 
         return (void*)((char*)chunk + sizeof(struct large_chunk));
     }
@@ -399,8 +389,6 @@ void heap_free(void* ptr)
         // insert_large_free_chunk
         insert_large_free_chunk(large_chunk);
                 
-        puts("==== BEFORE MERGE ====");
-        print_large_bin_contents();
 
         int merge_occurred = 0; 
         if (forward_adj_chunk != NULL && forward_adj_chunk->allocated == 0) {
@@ -415,7 +403,5 @@ void heap_free(void* ptr)
 
         if (!merge_occurred) large_chunk->allocated = 0;
 
-        puts("==== POST MERGE ====");
-        print_large_bin_contents();
     }
 }
