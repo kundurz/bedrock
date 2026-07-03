@@ -14,7 +14,6 @@ char* metadata_start;
 char* metadata_current;
 char* metadata_end;
 
-
 /* Heap utility functions for large bin. */
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
     struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
@@ -169,7 +168,7 @@ struct large_chunk* _search_large_bin_first_fit(int size) {
 
     // I'll start with first fit for simplicity.
     while (curr != NULL) {
-        if (curr->size >= size) {
+        if (curr->allocated == 0 && curr->size >= size) {
             return curr;
         }
         curr = curr->fd;
@@ -207,6 +206,18 @@ void _split_large_chunk(struct large_chunk* chunk, int size) {
     chunk->fd = split_chunk; 
     chunk->size = size;
     chunk->allocated = 0; 
+
+    // Update next chunk in doubly linked list.
+    if (split_chunk->fd != NULL) 
+        split_chunk->fd->bk = split_chunk;
+
+    // Update physical next chunk
+    struct large_chunk *next = next_physical_chunk(split_chunk);
+
+    if (next != NULL) 
+        next->prev_size = split_chunk->size;
+    
+    
 }
 
 /*
@@ -265,7 +276,7 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin)
 
     // Split up the memory page into chunks of the relevant size class.  
     struct fast_chunk* prev = NULL;
-    while (current < end_pointer) {
+    while (current + sizeof(struct fast_chunk) + size_class <= end_pointer) {
         struct fast_chunk* current_fast_chunk = (struct fast_chunk*)current; 
 
         // Ensuring the head pointer is set properly. 
@@ -351,6 +362,7 @@ void* heap_alloc(size_t bytes)
         } 
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
+
 
 
         unlink_large_free_chunk(chunk);
