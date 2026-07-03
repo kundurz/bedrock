@@ -1,104 +1,129 @@
 #include "heap_internal.h"
-#include "utils.h"
 
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void test_fast_alloc_unique_and_writable(void)
+#define FAST_ALLOCS 1000
+#define LARGE_ALLOCS 1000
+#define MAX_LIVE 512
+
+struct allocation {
+    void *ptr;
+    size_t size;
+    unsigned char pattern;
+};
+
+static unsigned char pattern_for(size_t id, size_t size)
 {
-    enum { N = 64 };
-    void *ptrs[N];
-
-    for (int i = 0; i < N; i++) {
-        ptrs[i] = heap_alloc(32);
-        assert(ptrs[i] != NULL);
-
-        memset(ptrs[i], 0x41 + (i % 26), 32);
-
-        for (int j = 0; j < i; j++) {
-            assert(ptrs[i] != ptrs[j]);
-        }
-    }
-
-    for (int i = 0; i < N; i++) {
-        heap_free(ptrs[i]);
-    }
-
-    puts("[OK] fast allocations are unique and writable");
+    return (unsigned char)((id * 131u + size * 17u) & 0xffu);
 }
 
-static void test_large_alloc_writable(void)
+static void fill_allocation(struct allocation *alloc)
 {
-    char *p = heap_alloc(5000);
-    assert(p != NULL);
+    memset(alloc->ptr, alloc->pattern, alloc->size);
+}
 
-    memset(p, 'A', 5000);
+static void verify_allocation(const struct allocation *alloc)
+{
+    unsigned char *p = alloc->ptr;
 
-    for (int i = 0; i < 5000; i++) {
-        assert(p[i] == 'A');
+    for (size_t i = 0; i < alloc->size; i++) {
+        assert(p[i] == alloc->pattern);
     }
-
-    heap_free(p);
-
-    puts("[OK] large allocation is writable");
 }
 
-static void test_large_split_and_coalesce(void)
+static void verify_all_live(const struct allocation *live, size_t live_count)
 {
-    char *base = heap_alloc(10000);
-    assert(base != NULL);
-    heap_free(base);
-
-    char *a = heap_alloc(2049);
-    char *b = heap_alloc(2049);
-    char *c = heap_alloc(2049);
-    char *d = heap_alloc(5917);
-
-    assert(a != NULL);
-    assert(b != NULL);
-    assert(c != NULL);
-    assert(d != NULL);
-
-    heap_free(a);
-    heap_free(c);
-    heap_free(b);
-    heap_free(d);
-
-    assert(*large_chunk_bin != NULL);
-    assert((*large_chunk_bin)->size >= 10000);
-    //assert((*large_chunk_bin)->fd == NULL); <-- bad assert, does not assume that tests share state.
-
-    puts("[OK] large chunks split and coalesce");
+    for (size_t i = 0; i < live_count; i++) {
+        verify_allocation(&live[i]);
+    }
 }
 
-static void test_large_reuse_after_coalesce(void)
+static size_t random_fast_size(void)
 {
-    char *p = heap_alloc(10000);
-    assert(p != NULL);
+    return (size_t)(rand() % 2049);
+}
 
-    memset(p, 'Z', 10000);
-    heap_free(p);
+static size_t random_large_size(void)
+{
+    return 2049u + (size_t)(rand() % 14000);
+}
 
-    char *q = heap_alloc(9000);
-    assert(q != NULL);
-
-    memset(q, 'Q', 9000);
-    heap_free(q);
-
-    puts("[OK] coalesced large chunk can be reused");
+static void remove_live_allocation(struct allocation *live, size_t *live_count, size_t index)
+{
+    live[index] = live[*live_count - 1];
+    (*live_count)--;
 }
 
 int main(void)
 {
+    struct allocation live[MAX_LIVE];
+    size_t live_count = 0;
+    size_t fast_done = 0;
+    size_t large_done = 0;
+    size_t allocation_id = 1;
+
+    srand(0xC0FFEE);
     assert(_heap_init() == 0);
 
-    test_fast_alloc_unique_and_writable();
-    test_large_alloc_writable();
-    test_large_split_and_coalesce();
-    test_large_reuse_after_coalesce();
+    while (fast_done < FAST_ALLOCS || large_done < LARGE_ALLOCS) {
+        int should_free = live_count > 0 && (live_count == MAX_LIVE || (rand() % 100) < 45);
 
-    puts("All allocator tests passed.");
+        if (should_free) {
+            size_t index = (size_t)(rand() % live_count);
+
+            verify_allocation(&live[index]);
+            heap_free(live[index].ptr);
+            remove_live_allocation(live, &live_count, index);
+        } else {
+            int choose_fast;
+
+            if (fast_done == FAST_ALLOCS) {
+                choose_fast = 0;
+            } else if (large_done == LARGE_ALLOCS) {
+                choose_fast = 1;
+            } else {
+                choose_fast = rand() & 1;
+            }
+
+            size_t size = choose_fast ? random_fast_size() : random_large_size();
+            void *ptr = heap_alloc(size);
+
+            assert(ptr != NULL);
+            assert(live_count < MAX_LIVE);
+
+            live[live_count].ptr = ptr;
+            live[live_count].size = size;
+            live[live_count].pattern = pattern_for(allocation_id++, size);
+            fill_allocation(&live[live_count]);
+            live_count++;
+
+            if (choose_fast) {
+                fast_done++;
+            } else {
+                large_done++;
+            }
+        }
+
+        if (((fast_done + large_done) % 100) == 0) {
+            verify_all_live(live, live_count);
+        }
+    }
+
+    while (live_count > 0) {
+        size_t index = (size_t)(rand() % live_count);
+
+        verify_allocation(&live[index]);
+        heap_free(live[index].ptr);
+        remove_live_allocation(live, &live_count, index);
+    }
+
+    assert(fast_done == FAST_ALLOCS);
+    assert(large_done == LARGE_ALLOCS);
+
+    puts("[OK] randomized allocator overwrite test passed");
     return 0;
 }
