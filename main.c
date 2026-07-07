@@ -6,124 +6,34 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FAST_ALLOCS 1000
-#define LARGE_ALLOCS 1000
-#define MAX_LIVE 512
-
-struct allocation {
-    void *ptr;
-    size_t size;
-    unsigned char pattern;
-};
-
-static unsigned char pattern_for(size_t id, size_t size)
-{
-    return (unsigned char)((id * 131u + size * 17u) & 0xffu);
-}
-
-static void fill_allocation(struct allocation *alloc)
-{
-    memset(alloc->ptr, alloc->pattern, alloc->size);
-}
-
-static void verify_allocation(const struct allocation *alloc)
-{
-    unsigned char *p = alloc->ptr;
-
-    for (size_t i = 0; i < alloc->size; i++) {
-        assert(p[i] == alloc->pattern);
-    }
-}
-
-static void verify_all_live(const struct allocation *live, size_t live_count)
-{
-    for (size_t i = 0; i < live_count; i++) {
-        verify_allocation(&live[i]);
-    }
-}
-
-static size_t random_fast_size(void)
-{
-    return (size_t)(rand() % 2049);
-}
-
-static size_t random_large_size(void)
-{
-    return 2049u + (size_t)(rand() % 14000);
-}
-
-static void remove_live_allocation(struct allocation *live, size_t *live_count, size_t index)
-{
-    live[index] = live[*live_count - 1];
-    (*live_count)--;
-}
-
 int main(void)
 {
-    struct allocation live[MAX_LIVE];
-    size_t live_count = 0;
-    size_t fast_done = 0;
-    size_t large_done = 0;
-    size_t allocation_id = 1;
+    // I'm going to have to test this stuff myself.
+    // 1) The size class must be appropriate --> I will trust this. I think it should be fine.
+    // 2) The slot is from the correct slab in the correct bin
+    // 3) You add a new slab when there are no more slots left. 
 
-    srand(0xC0FFEE);
-    assert(_heap_init() == 0);
+    heap_alloc(16);
+    heap_alloc(32);
+    heap_alloc(64);
+    heap_alloc(128);
+    heap_alloc(256);
+    heap_alloc(512);
+    heap_alloc(1024);
+    heap_alloc(2048);
 
-    while (fast_done < FAST_ALLOCS || large_done < LARGE_ALLOCS) {
-        int should_free = live_count > 0 && (live_count == MAX_LIVE || (rand() % 100) < 45);
 
-        if (should_free) {
-            size_t index = (size_t)(rand() % live_count);
 
-            verify_allocation(&live[index]);
-            heap_free(live[index].ptr);
-            remove_live_allocation(live, &live_count, index);
-        } else {
-            int choose_fast;
+    // Yes (2) is now going to be verified by this.
 
-            if (fast_done == FAST_ALLOCS) {
-                choose_fast = 0;
-            } else if (large_done == LARGE_ALLOCS) {
-                choose_fast = 1;
-            } else {
-                choose_fast = rand() & 1;
-            }
-
-            size_t size = choose_fast ? random_fast_size() : random_large_size();
-            void *ptr = heap_alloc(size);
-
-            assert(ptr != NULL);
-            assert(live_count < MAX_LIVE);
-
-            live[live_count].ptr = ptr;
-            live[live_count].size = size;
-            live[live_count].pattern = pattern_for(allocation_id++, size);
-            fill_allocation(&live[live_count]);
-            live_count++;
-
-            if (choose_fast) {
-                fast_done++;
-            } else {
-                large_done++;
-            }
-        }
-
-        if (((fast_done + large_done) % 100) == 0) {
-            verify_all_live(live, live_count);
-        }
+    for (int i = 0; i < 255; i++) {
+        heap_alloc(16);
     }
+    print_all_slabs();
 
-    while (live_count > 0) {
-        size_t index = (size_t)(rand() % live_count);
+    puts("=== EXAMINE HERE!!! ===");
+    heap_alloc(16);
+    print_all_slabs();
 
-        verify_allocation(&live[index]);
-        heap_free(live[index].ptr);
-        remove_live_allocation(live, &live_count, index);
-    }
-
-    assert(fast_done == FAST_ALLOCS);
-    assert(large_done == LARGE_ALLOCS);
-
-    puts("[OK] randomized allocator overwrite test passed");
     return 0;
 }

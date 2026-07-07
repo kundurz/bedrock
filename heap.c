@@ -1,19 +1,38 @@
 #define _GNU_SOURCE
+#define PAGE_SIZE_BYTES 4096
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <stddef.h>
+#include <assert.h>
 #include "heap_internal.h"
 #include "utils.h"
 
-struct fast_chunk** fast_chunk_bins;
+struct slab** fast_caches;
 struct large_chunk** large_chunk_bin;
 
 char* metadata_start;
 char* metadata_current;
 char* metadata_end;
 
+int heap_initialized = 0;
+
+
+void print_slab(struct slab* slab) {
+    struct slab* curr = slab;
+
+    while (curr != NULL) {
+        printf("| SIZE = %ld, FREE_SLOTS = %ld| -> ", curr->size_class, curr->free_count);
+        curr = curr->next;
+    }
+    printf("\n");
+}
+
+void print_all_slabs() {
+    for (int i = 0; i < 8; i++)
+        print_slab(fast_caches[i]);
+}
 /* Heap utility functions for large bin. */
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
     struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
@@ -96,7 +115,7 @@ int _heap_init()
         0
     );
 
-    // Check if mmap worked.
+    // Check if mmap worked./
     if (metadata_start == MAP_FAILED) {
         perror("mmap: MAP FAILED");
         return -1; 
@@ -107,7 +126,8 @@ int _heap_init()
     metadata_current = metadata_start;
 
     // Allocate fast chunk bins on the heap.
-    fast_chunk_bins = (struct fast_chunk**)_metadata_alloc(8 * sizeof(struct fast_chunk*));
+    fast_caches = (struct slab**)_metadata_alloc(8 * sizeof(struct slab*));
+
     //_allocate_fast_bin_page(16, &fast_chunk_bins[0]);
     //print_list(fast_chunk_bins[0]);
 
@@ -253,10 +273,16 @@ void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chu
 }
 
 /*
-    _allocate_fast_bin_page() is a function called to get more memory
+    _allocate_fast_page() is a function called to get more memory
     when a given fast bin is empty (there are no more chunks). 
+
+    One nice thing about pushing the new page to the head is that 
+    when performing a linear search you can actually get a free page faster. 
+
+    Actually, we may not even need a linear search since if the first bin isnt free
+    then none of the bins should be free.
 */
-void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin) 
+void _allocate_fast_page(int size_class, struct slab** cache) 
 {
     // Allocate a new page for whichever bin we are dealing with.
     char* new_page = (char*)mmap(
@@ -268,47 +294,43 @@ void _allocate_fast_bin_page(int size_class, struct fast_chunk** bin)
         0
     );
 
-    // Pointers used to traverse the memory region. 
-    // char* used because I want byte-level granularity.
-    char* start_pointer = new_page; 
-    char* current = start_pointer; 
-    char* end_pointer = start_pointer + 4096;
+    // Fill in the header.
+    void* next_slab = (*cache);
 
-    // Split up the memory page into chunks of the relevant size class.  
-    struct fast_chunk* prev = NULL;
-    while (current + sizeof(struct fast_chunk) + size_class <= end_pointer) {
-        struct fast_chunk* current_fast_chunk = (struct fast_chunk*)current; 
+    *cache = (struct slab*)new_page;
+    (*cache)->base = new_page; 
+    (*cache)->size_class = size_class;
+    (*cache)->slot_count = (PAGE_SIZE_BYTES - sizeof(struct slab)) / size_class;
+    (*cache)->free_count = (*cache)->slot_count; // At the beginning all slots are free
 
-        // Ensuring the head pointer is set properly. 
-        if (prev != NULL) {
-            prev->fd = current_fast_chunk;
-        } else {
-            *bin = current_fast_chunk;
-        }
+    (*cache)->next = next_slab; 
 
-        // Setting metadata.
-        current_fast_chunk->size_class = size_class;
-        current_fast_chunk->fd = NULL;
-
-        prev = current_fast_chunk;
-
-        // Additiona accounts for desires size as well as metadata. 
-        current += size_class + sizeof(struct fast_chunk);
-    }
+    printf("CACHE: %p, NEXT CACHE: %p\n", (*cache), (*cache)->next); 
 }
 
 /*
-    bin_pop() pops a chunk off of a fast chunk bin and returns it. 
+    _slab_alloc()
+
+    USE A BYTEMAP. DO NOT USE A BITMAP. IT WILL MAKE YOUR LIFE FAR EASIER
+    THEN COME BACK AND USE A BITMAP.
 */
-struct fast_chunk* bin_pop(struct fast_chunk** bin) 
-{
+void* _slab_alloc(struct slab* cache) {
+    int i = 0;
+    for (; i < cache->slot_count; i++) {
+        if (cache->alloc_bytemap[i] == 0)
+            break;
+    }
 
-    // Pop off an entry from the head; then set a new head.
-    struct fast_chunk* to_pop = *bin;
-    *bin = (*bin)->fd;
+    if (i == cache->slot_count) // PRevents silent out of bounds writes if free_count gets out of sync.
+        return NULL;
+    
+    cache->alloc_bytemap[i] = 0xff;
+    cache->free_count--;
 
-    // Move the pointer past the metadata region.
-    return to_pop; 
+    // We have to return 
+    void* slot_address = (char*)((char*)cache  + sizeof(struct slab)) + (cache->size_class * i);
+    
+    return slot_address;
 }
 
 /*
@@ -339,20 +361,29 @@ void print_list(struct fast_chunk* hd)
 */
 void* heap_alloc(size_t bytes) 
 {
+    if (!heap_initialized) {
+        heap_initialized = 1;
+        _heap_init();
+    }
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
 
     if (size_class != -1) {
-        struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(size_class)];
+        struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
+        
+        int made_new_page = 0;
+        if ((*cache) == NULL || (*cache)->free_count == 0) {
+            _allocate_fast_page(size_class, cache); 
+            made_new_page = 1;
+        }
+        
+        if (made_new_page) {
+            puts("right after alloc fast_page");
+            print_all_slabs();
+        }
+        void* pointer = _slab_alloc(*cache); 
+        return pointer; 
 
-        // If the relevant size class bin is empty, fill it up again.
-        if (*bin == NULL) { 
-            _allocate_fast_bin_page(size_class, bin);
-        } 
-
-        // Return user data region of allocated chunk.
-        struct fast_chunk* allocated_chunk = bin_pop(bin);
-        return (void*)((char*)allocated_chunk + sizeof(struct fast_chunk));
     } else {
         // Search for a valid size large chunk.
         struct large_chunk* chunk = _search_large_bin_first_fit(bytes); // Looks ok 
@@ -362,7 +393,6 @@ void* heap_alloc(size_t bytes)
         } 
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
-
 
 
         unlink_large_free_chunk(chunk);
@@ -387,7 +417,7 @@ void heap_free(void* ptr)
         // We're going to need some way to check the size. 
         // Peer into metadata
         struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
-        struct fast_chunk** bin = &fast_chunk_bins[get_fast_chunk_index(fast_chunk->size_class)];
+        struct fast_chunk** bin = &fast_caches[get_fast_chunk_index(fast_chunk->size_class)];
         bin_push(fast_chunk, bin);
     } else {
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
