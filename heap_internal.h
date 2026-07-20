@@ -23,6 +23,7 @@ struct fast_chunk
     uint64_t size_class;
 }; // you just add this size to the allocated chunk and there's the user data!
 
+
 /* Migration to a slab-based approach */
 struct slab {
     void *base;

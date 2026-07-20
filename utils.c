@@ -59,3 +59,15 @@ int get_fast_chunk_index(int size_class) {
 size_t round_to_nearest_page(int num) {
     return (num + 4095) & ~(size_t)4095;
 }
+
+size_t round_down_power_of_two(size_t value) {
+    if (value == 0)
+        return 0;
+
+    size_t result = 1;
+
+    while (result <= value / 2)
+        result *= 2;
+
+    return result;
+}
