@@ -2,6 +2,7 @@
 #include <sys/random.h>
 #include <stdint.h>
 #include <errno.h>
+#include <stdio.h>
 #include "addr_map.h"
 #include "utils.h"
 
@@ -62,3 +63,21 @@ int initialize_hash_map() {
     return 0;
 }
 
+/* This is returning an integer because if something goes wrong, i want to return an error. */
+int addr_map_insert(uintptr_t addr_key, struct slab metadata_value) {
+    int map_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+
+    struct map_entry* relevant_entry = (struct map_entry*)map_state.base + map_entry_index; 
+
+    relevant_entry->key = addr_key;
+    relevant_entry->value = metadata_value;
+
+    return 0;
+}
+
+void addr_map_enumerate() {
+    for (int i = 0; i < map_state.capacity; i++) {
+        struct map_entry* curr = map_state.base + i;
+        printf("| key = %lx |\n", curr->key);
+    }
+}
