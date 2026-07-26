@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "addr_map.h"
 #include "utils.h"
 
@@ -63,16 +64,58 @@ int initialize_hash_map() {
     return 0;
 }
 
+static int _addr_map_access_index_key(int index) 
+{
+    struct map_entry* relevant_entry = (struct map_entry*)map_state.base + index; 
+
+    return relevant_entry->key;
+}
+
+// We need to have a "targetKey" and a "targetValue" variable.
+// The targetkey variable can change based on an insertion, but
+// we need to keep track of the inserted index that we inserted the very first thing.
+static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab metadata_value) {
+    int home_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+    
+    uintptr_t targetKey = addr_key;
+    struct slab targetValue = metadata_value; 
+    uint8_t targetDib = 0;
+    struct map_entry* inserted_entry = NULL;
+
+    // use modulo to bound everything later.
+    for (int i = home_entry_index; true ; i++) {
+        struct map_entry* curr = (struct map_entry*)map_state.base + (i % map_state.capacity); 
+        if (curr->is_occupied) {
+            if (targetDib > curr->dib) {
+                if (inserted_entry == NULL) inserted_entry = curr;
+
+                generic_swap(&targetKey, &curr->key, sizeof(uintptr_t));
+                generic_swap(&targetValue, &curr->value, sizeof(struct slab));
+                generic_swap(&targetDib, &curr->dib, sizeof(uint8_t));
+            }
+        } else {
+            if (inserted_entry == NULL) inserted_entry = curr;
+            curr->key = targetKey;
+            curr->value = targetValue;
+            curr->dib = targetDib;
+            curr->is_occupied = true;
+            
+            return inserted_entry; // The point where we find an empty slot is when the search is over.
+        }
+
+        targetDib++;
+    }
+
+    return NULL;
+}
+
 /* This is returning an integer because if something goes wrong, i want to return an error. */
 int addr_map_insert(uintptr_t addr_key, struct slab metadata_value) {
     int map_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
 
-    struct map_entry* relevant_entry = (struct map_entry*)map_state.base + map_entry_index; 
+    struct map_entry* relevant_entry = robin_hood_resolution(addr_key, metadata_value);
 
-    relevant_entry->key = addr_key;
-    relevant_entry->value = metadata_value;
-
-    return 0;
+    return relevant_entry != NULL;
 }
 
 void addr_map_enumerate() {
@@ -81,3 +124,4 @@ void addr_map_enumerate() {
         printf("| key = %lx |\n", curr->key);
     }
 }
+

@@ -1,10 +1,15 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "heap_internal.h"
 
+/* HASH MAP ENTRY AND STATE STRUCTS */
 struct map_entry {
     uint64_t key;
     struct slab value;
+
+    uint8_t dib; 
+    bool is_occupied;
 };
 
 struct hash_map_state {
