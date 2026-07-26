@@ -10,6 +10,7 @@ int main()
 
     struct slab slab_metadata = { 0 }; 
 
+    print_map_state();
 
     for (int i = 0; i < 8; i++) {
         void* my_addr = mmap(
@@ -20,9 +21,11 @@ int main()
             -1, 
             0
         );
-        addr_map_insert(my_addr, slab_metadata);
+        addr_map_insert((uintptr_t)my_addr, slab_metadata);
         printf("-----\n");
         addr_map_enumerate();
+
+        getchar();
     }
 
     return 0;

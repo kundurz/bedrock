@@ -22,8 +22,11 @@ struct hash_map_state {
     uint64_t random_salt;
 };
 
-/* FUNCTIONS */
+/* CORE INTERFACES */
 int initialize_hash_map(); 
 int addr_map_insert(uintptr_t addr_key, struct slab metadata_value); 
+
+/* INTERFACES FOR TESTING */
+void print_map_state(); 
 void addr_map_enumerate(); 
 
