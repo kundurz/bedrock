@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <string.h>
+#include "utils.h"
 
 /*
     Determines the fast chunk size class 
@@ -70,4 +72,11 @@ size_t round_down_power_of_two(size_t value) {
         result *= 2;
 
     return result;
+}
+
+void generic_swap(void *a, void *b, size_t size) {
+    char temp[size]; 
+    memcpy(temp, a, size);
+    memcpy(a, b, size);
+    memcpy(b, temp, size);
 }
