@@ -5,9 +5,6 @@
 
 int main() 
 {
-
-    
-
     initialize_hash_map();
 
 
