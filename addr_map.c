@@ -83,6 +83,7 @@ static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab m
     struct map_entry* inserted_entry = NULL;
 
     // use modulo to bound everything later.
+    // I USE TRUE HERE SO THAT IT WRAPS AROUND, DO NOT GUARD IT1
     for (int i = home_entry_index; true ; i++) {
         struct map_entry* curr = (struct map_entry*)map_state.base + (i % map_state.capacity); 
         if (curr->is_occupied) {
@@ -109,11 +110,49 @@ static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab m
     return NULL;
 }
 
+// When we resize a hash map, we almost have to create a new one.
+// This should also take place releti
+static void resize_map() {
+    struct map_entry* old_base = map_state.base;
+    uint64_t old_capacity = map_state.capacity;
+    size_t old_size = map_state.size;
+
+    map_state.size *= 2; 
+    map_state.capacity *= 2; 
+
+    map_state.base =  mmap(
+        NULL, 
+        map_state.size,
+        PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANON,
+        -1, 
+        0
+    );
+
+    for (int i = 0; i < old_capacity; i++) {
+        struct map_entry* curr = old_base + i;
+        robin_hood_resolution(curr->key, curr->value);
+    }
+
+    if(munmap(old_base, old_size)) {
+        fprintf(stderr, "Could not unmap old memory: %p\n", old_base);
+        exit(-1);
+    }
+}
+
 /* This is returning an integer because if something goes wrong, i want to return an error. */
 int addr_map_insert(uintptr_t addr_key, struct slab metadata_value) {
+    double load_factor = (double)map_state.occupied_slots / map_state.capacity;
+
+    if (load_factor > 0.7) {
+        resize_map();
+    }
+
     int map_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
 
     struct map_entry* relevant_entry = robin_hood_resolution(addr_key, metadata_value);
+    
+    map_state.occupied_slots += 1;
 
     return relevant_entry != NULL;
 }
@@ -123,5 +162,11 @@ void addr_map_enumerate() {
         struct map_entry* curr = map_state.base + i;
         printf("| key = %lx |\n", curr->key);
     }
+}
+
+void print_map_state() {
+    printf("--- CURRENT MAP STATE ---\n");
+    printf("MAP SIZE: %ld BYTES\n", map_state.size);
+    printf("MAP CAPACITY: %ld ENTRIES\n", map_state.capacity);
 }
 
