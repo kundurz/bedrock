@@ -40,8 +40,8 @@ util_test: utils.o util_test.o
 slab_slot_test: heap.o utils.o slab_slot_test.o
 	gcc slab_slot_test.o heap.o utils.o -o slab_slot_test
 
-fast_slab_overflow_test: heap.o utils.o fast_slab_overflow_test.o
-	gcc fast_slab_overflow_test.o heap.o utils.o -o fast_slab_overflow_test
+fast_slab_overflow_test: heap.o addr_map.o utils.o fast_slab_overflow_test.o
+	gcc fast_slab_overflow_test.o heap.o addr_map.o utils.o -o fast_slab_overflow_test
 
 test: slab_slot_test
 	./slab_slot_test
