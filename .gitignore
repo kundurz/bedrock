@@ -5,3 +5,4 @@ slab_slot_test
 fast_slab_overflow_test
 addr_map_test
 design_rough_notes.md
+mechanics_test
