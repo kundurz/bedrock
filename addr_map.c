@@ -131,7 +131,8 @@ static void resize_map() {
 
     for (int i = 0; i < old_capacity; i++) {
         struct map_entry* curr = old_base + i;
-        robin_hood_resolution(curr->key, curr->value);
+        if (curr->is_occupied)
+            robin_hood_resolution(curr->key, curr->value);
     }
 
     if(munmap(old_base, old_size)) {
@@ -157,6 +158,28 @@ int addr_map_insert(uintptr_t addr_key, struct slab metadata_value) {
     return relevant_entry != NULL;
 }
 
+// I think we can just search linearly form the starting position. 
+struct map_entry* addr_map_lookup(uintptr_t addr_key) {
+
+    if (addr_key == NULL) 
+        return NULL;
+    int index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+
+    bool entry_is_occupied = true;
+    while (entry_is_occupied) {
+        struct map_entry* curr = (struct map_entry*)map_state.base + (index); 
+        if (curr->is_occupied) {
+            if (curr->key == addr_key)
+                return curr;
+        } else {
+            break;
+        }
+        index = (index + 1) % map_state.capacity;
+    }
+
+    return NULL; // entry not found.
+}
+
 void addr_map_enumerate() {
     for (int i = 0; i < map_state.capacity; i++) {
         struct map_entry* curr = map_state.base + i;
@@ -169,4 +192,6 @@ void print_map_state() {
     printf("MAP SIZE: %ld BYTES\n", map_state.size);
     printf("MAP CAPACITY: %ld ENTRIES\n", map_state.capacity);
 }
+
+
 

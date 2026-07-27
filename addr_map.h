@@ -25,6 +25,7 @@ struct hash_map_state {
 /* CORE INTERFACES */
 int initialize_hash_map(); 
 int addr_map_insert(uintptr_t addr_key, struct slab metadata_value); 
+struct map_entry* addr_map_lookup(uintptr_t addr_key); 
 
 /* INTERFACES FOR TESTING */
 void print_map_state(); 
