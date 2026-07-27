@@ -8,6 +8,7 @@
 #include <assert.h>
 #include "heap_internal.h"
 #include "utils.h"
+#include "addr_map.h"
 
 struct slab** fast_caches;
 struct large_chunk** large_chunk_bin;
@@ -134,6 +135,8 @@ int _heap_init()
     // Allocate large chunk bins on the heap.
     large_chunk_bin = (struct large_chunk**)_metadata_alloc(sizeof(struct large_chunk*));
 
+    initialize_hash_map();
+
     return 0;
 }
 
@@ -174,6 +177,7 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
     new_chunk->span.start = new_page;
     new_chunk->span.end = (char*)new_page + new_chunk->size + sizeof(struct large_chunk);
     new_chunk->prev_size = -1;
+
 
     *bin = new_chunk;
 
@@ -297,15 +301,20 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     // Fill in the header.
     void* next_slab = (*cache);
 
+    // Set the metadata
+    struct slab metadata = { 0 };
+    metadata.base = new_page;
+    metadata.size_class = size_class;
+    metadata.slot_count = PAGE_SIZE_BYTES / size_class;
+    metadata.free_count = metadata.slot_count;
+    metadata.next = next_slab;
+
+    // Insert the metadata in the hash map
+    puts("starting insert!"); 
+    addr_map_insert((uintptr_t)new_page, metadata);
+    puts("finishing insert!");
+
     *cache = (struct slab*)new_page;
-    (*cache)->base = new_page; 
-    (*cache)->size_class = size_class;
-    (*cache)->slot_count = (PAGE_SIZE_BYTES - sizeof(struct slab)) / size_class;
-    (*cache)->free_count = (*cache)->slot_count; // At the beginning all slots are free
-
-    (*cache)->next = next_slab; 
-
-    printf("CACHE: %p, NEXT CACHE: %p\n", (*cache), (*cache)->next); 
 }
 
 /*
@@ -315,21 +324,32 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     THEN COME BACK AND USE A BITMAP.
 */
 void* _slab_alloc(struct slab* cache) {
+    puts("Entering slab alloc!");
     int i = 0;
-    for (; i < cache->slot_count; i++) {
-        if (cache->alloc_bytemap[i] == 0)
+
+    printf("Here is what the cache: %p\n", cache);
+    struct map_entry* map_entry = addr_map_lookup(cache);
+    printf("KEY FOR MAP ENTRY = %p\n", map_entry->key); // we need to be returning the key or something related to it.
+    struct slab* free_slab = &(map_entry->value);
+
+    for (; i < free_slab->slot_count; i++) {
+        if (free_slab->alloc_bytemap[i] == 0)
             break;
     }
 
-    if (i == cache->slot_count) // PRevents silent out of bounds writes if free_count gets out of sync.
+    if (i == free_slab->slot_count) // Prevents silent out of bounds writes if free_count gets out of sync.
         return NULL;
-    
-    cache->alloc_bytemap[i] = 0xff;
-    cache->free_count--;
+   
+    free_slab->alloc_bytemap[i] = 0xff;
+    free_slab->free_count--;
 
     // We have to return 
-    void* slot_address = (char*)((char*)cache  + sizeof(struct slab)) + (cache->size_class * i);
-    
+    //void* slot_address = (char*)((char*)cache  + sizeof(struct slab)) + (cache->size_class * i);
+    void* slot_address = (char*)cache + (free_slab->size_class * i);
+    printf("This is the slot address being sent: %p\n", slot_address);
+    printf("This is the cache: %p\n", cache);
+    printf("This is the size class: %d\n", free_slab->size_class);
+
     return slot_address;
 }
 
@@ -371,17 +391,18 @@ void* heap_alloc(size_t bytes)
     if (size_class != -1) {
         struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
         
-        int made_new_page = 0;
-        if ((*cache) == NULL || (*cache)->free_count == 0) {
+        puts("before lookup");
+        struct map_entry* entry = addr_map_lookup(*cache);
+        puts("after lookup!");
+
+        if (entry == NULL || entry->value.free_count == 0) {
+            puts("starting to allocate fast bin page");
             _allocate_fast_page(size_class, cache); 
-            made_new_page = 1;
+            puts("finished allocting fast bin page");
         }
         
-        if (made_new_page) {
-            puts("right after alloc fast_page");
-            print_all_slabs();
-        }
         void* pointer = _slab_alloc(*cache); 
+
         return pointer; 
 
     } else {
@@ -393,7 +414,6 @@ void* heap_alloc(size_t bytes)
         } 
 
         _split_large_chunk(chunk, bytes); // chunk is now the correct size
-
 
         unlink_large_free_chunk(chunk);
 
