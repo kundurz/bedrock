@@ -310,9 +310,7 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.next = next_slab;
 
     // Insert the metadata in the hash map
-    puts("starting insert!"); 
     addr_map_insert((uintptr_t)new_page, metadata);
-    puts("finishing insert!");
 
     *cache = (struct slab*)new_page;
 }
@@ -324,12 +322,9 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     THEN COME BACK AND USE A BITMAP.
 */
 void* _slab_alloc(struct slab* cache) {
-    puts("Entering slab alloc!");
     int i = 0;
 
-    printf("Here is what the cache: %p\n", cache);
     struct map_entry* map_entry = addr_map_lookup(cache);
-    printf("KEY FOR MAP ENTRY = %p\n", map_entry->key); // we need to be returning the key or something related to it.
     struct slab* free_slab = &(map_entry->value);
 
     for (; i < free_slab->slot_count; i++) {
@@ -346,9 +341,6 @@ void* _slab_alloc(struct slab* cache) {
     // We have to return 
     //void* slot_address = (char*)((char*)cache  + sizeof(struct slab)) + (cache->size_class * i);
     void* slot_address = (char*)cache + (free_slab->size_class * i);
-    printf("This is the slot address being sent: %p\n", slot_address);
-    printf("This is the cache: %p\n", cache);
-    printf("This is the size class: %d\n", free_slab->size_class);
 
     return slot_address;
 }
@@ -391,14 +383,10 @@ void* heap_alloc(size_t bytes)
     if (size_class != -1) {
         struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
         
-        puts("before lookup");
         struct map_entry* entry = addr_map_lookup(*cache);
-        puts("after lookup!");
 
         if (entry == NULL || entry->value.free_count == 0) {
-            puts("starting to allocate fast bin page");
             _allocate_fast_page(size_class, cache); 
-            puts("finished allocting fast bin page");
         }
         
         void* pointer = _slab_alloc(*cache); 
