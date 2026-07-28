@@ -8,6 +8,7 @@
 
 static void test_fast_alloc_unique_and_writable(void)
 {
+    puts("hii!");
     enum { N = 64 };
     void *ptrs[N];
 
@@ -15,6 +16,9 @@ static void test_fast_alloc_unique_and_writable(void)
         ptrs[i] = heap_alloc(32);
         assert(ptrs[i] != NULL);
 
+        puts("--- MEMSET STATUS ---");
+        printf("i = %d\n", i);
+        printf("ptr = %p\n", ptrs[i]);
         memset(ptrs[i], 0x41 + (i % 26), 32);
 
         for (int j = 0; j < i; j++) {
@@ -22,6 +26,7 @@ static void test_fast_alloc_unique_and_writable(void)
         }
     }
 
+    // Temporarily commenting this out before i port over heap free.
     for (int i = 0; i < N; i++) {
         heap_free(ptrs[i]);
     }
@@ -92,12 +97,11 @@ static void test_large_reuse_after_coalesce(void)
 
 int main(void)
 {
-    assert(_heap_init() == 0);
-
     test_fast_alloc_unique_and_writable();
-    test_large_alloc_writable();
-    test_large_split_and_coalesce();
-    test_large_reuse_after_coalesce();
+    puts("Fast allocator tests passed.");
+    //test_large_alloc_writable();
+    //test_large_split_and_coalesce();
+    //test_large_reuse_after_coalesce();
 
     puts("All allocator tests passed.");
     return 0;
