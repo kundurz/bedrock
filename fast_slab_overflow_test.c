@@ -62,11 +62,55 @@ static void verify_all_allocations(const struct allocation *allocs, size_t count
     }
 }
 
+static int pointer_is_one_of(void *ptr, void *const *expected, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (ptr == expected[i])
+            return 1;
+    }
+
+    return 0;
+}
+
+static void test_fast_free_reuses_full_slab(void)
+{
+    enum {
+        SIZE_CLASS = 2048,
+        SLOTS_PER_SLAB = TEST_PAGE_SIZE / SIZE_CLASS
+    };
+
+    void *original[SLOTS_PER_SLAB];
+    void *reused[SLOTS_PER_SLAB];
+
+    for (size_t i = 0; i < SLOTS_PER_SLAB; i++) {
+        original[i] = heap_alloc(SIZE_CLASS);
+        assert(original[i] != NULL);
+        memset(original[i], 0xa5, SIZE_CLASS);
+    }
+
+    for (size_t i = 0; i < SLOTS_PER_SLAB; i++) {
+        heap_free(original[i]);
+    }
+
+    for (size_t i = 0; i < SLOTS_PER_SLAB; i++) {
+        reused[i] = heap_alloc(SIZE_CLASS);
+        assert(reused[i] != NULL);
+        assert(pointer_is_one_of(reused[i], original, SLOTS_PER_SLAB));
+
+        for (size_t j = 0; j < i; j++) {
+            assert(reused[i] != reused[j]);
+        }
+    }
+
+    puts("[OK] fast frees make a full slab reusable");
+}
+
 int main(void)
 {
     struct allocation allocs[ALLOCATION_COUNT];
 
     srand(0x51ab500u);
+    test_fast_free_reuses_full_slab();
 
     for (size_t i = 0; i < ALLOCATION_COUNT; i++) {
         allocs[i].requested_size = random_fast_size();
@@ -87,6 +131,11 @@ int main(void)
 
     verify_all_allocations(allocs, ALLOCATION_COUNT);
 
+    for (size_t i = ALLOCATION_COUNT; i > 0; i--) {
+        heap_free(allocs[i - 1].ptr);
+    }
+
     puts("[OK] fast slab heap_alloc overflow stress test passed");
+    puts("[OK] all fast stress allocations freed");
     return 0;
 }
