@@ -320,6 +320,8 @@ void _allocate_fast_page(int size_class, struct slab** cache)
 
     USE A BYTEMAP. DO NOT USE A BITMAP. IT WILL MAKE YOUR LIFE FAR EASIER
     THEN COME BACK AND USE A BITMAP.
+
+    I'm wondering if this even accounts for the case where 
 */
 void* _slab_alloc(struct slab* cache) {
     int i = 0;
@@ -346,16 +348,6 @@ void* _slab_alloc(struct slab* cache) {
 }
 
 /*
-    bin_push() pushes a chunk onto a fast chunk bin and returns it.
-*/
-void bin_push(struct fast_chunk* to_push, struct fast_chunk** bin) 
-{
-    // Setting to_push as the head of the list.
-    to_push->fd = *bin;
-    *bin = to_push;
-}
-
-/*
     Function used for debugging.
 */
 void print_list(struct fast_chunk* hd) 
@@ -370,6 +362,8 @@ void print_list(struct fast_chunk* hd)
 
 /*
     Allocates some heap memory for the user.
+
+    OK I think I need a function for something. 
 */
 void* heap_alloc(size_t bytes) 
 {
@@ -414,19 +408,24 @@ void* heap_alloc(size_t bytes)
 */
 void heap_free(void* ptr) 
 {
-    uint64_t size = *(uint64_t *)(
-    (char*)ptr
-    - sizeof(struct large_chunk)
-    + offsetof(struct large_chunk, size)
-    );
+    // Take out the ptr last 3 bits
+    uintptr_t page_base = (uintptr_t)ptr & ~0xFFF;
+    uintptr_t slot_start = (uintptr_t)ptr & 0xFFF;
+
+    struct map_entry* entry = addr_map_lookup(page_base);
+
+    if (entry == NULL)  // This could also mean its a lerge chunk, so later we'll have to make this check pertian to that case. 
+        return;
+
+    size_t size = entry->value.size_class;
+
 
 
     if (size <= 2048) {
-        // We're going to need some way to check the size. 
-        // Peer into metadata
-        struct fast_chunk* fast_chunk = (struct fast_chunk*)ptr - 1; 
-        struct fast_chunk** bin = &fast_caches[get_fast_chunk_index(fast_chunk->size_class)];
-        bin_push(fast_chunk, bin);
+        int bytemap_index = slot_start / size;
+        entry->value.alloc_bytemap[bytemap_index] = 0x00;
+        entry->value.free_count++;
+
     } else {
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
 
