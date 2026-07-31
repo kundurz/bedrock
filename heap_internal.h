@@ -34,6 +34,7 @@ struct slab {
     uint64_t alloc_bitmap[4];
     uint8_t alloc_bytemap[256];
     struct slab *next;
+    struct slab *prev;
 };
 
 /* Structs for large chunks */
@@ -53,7 +54,6 @@ void _allocate_fast_bin_page(int size_class, struct slab** bin);
 struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin);
 void _split_large_chunk(struct large_chunk* chunk, int size); 
 void* heap_alloc(size_t bytes); 
-void print_list(struct fast_chunk* hd); 
 struct large_chunk* _search_large_bin_first_fit(int size); 
 struct fast_chunk* bin_pop(struct fast_chunk** bin);
 void heap_free(void* ptr);
