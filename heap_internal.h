@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 // FOR TESTING
-extern struct fast_chunk **fast_chunk_bins;
 extern struct large_chunk **large_chunk_bin;
 
 /* Struct that contains the start and end address for a mmaped region */
@@ -14,17 +13,7 @@ struct span
     void* end;
 };
 
-/* Structs for chunks and metadata  */
-/* Size must be at the end of both structs so that pointer arithmetic
-may be used to determine the size of */
-struct fast_chunk
-{
-    struct fast_chunk *fd;
-    uint64_t size_class;
-}; // you just add this size to the allocated chunk and there's the user data!
-
-
-/* Migration to a slab-based approach */
+/* Structs for slabs and large chunks */
 struct slab {
     void *base;
     size_t size_class;
@@ -55,11 +44,8 @@ struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin
 void _split_large_chunk(struct large_chunk* chunk, int size); 
 void* heap_alloc(size_t bytes); 
 struct large_chunk* _search_large_bin_first_fit(int size); 
-struct fast_chunk* bin_pop(struct fast_chunk** bin);
 void heap_free(void* ptr);
 void print_large_bin_contents(); 
-
-
 int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk);
 struct large_chunk* prev_physical_chunk(struct large_chunk* chunk); 
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk); 
