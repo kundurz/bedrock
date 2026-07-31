@@ -19,7 +19,6 @@ char* metadata_end;
 
 int heap_initialized = 0;
 
-
 void print_slab(struct slab* slab) {
     struct slab* curr = slab;
 
@@ -34,6 +33,7 @@ void print_all_slabs() {
     for (int i = 0; i < 8; i++)
         print_slab(fast_caches[i]);
 }
+
 /* Heap utility functions for large bin. */
 struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
     struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
@@ -129,8 +129,6 @@ int _heap_init()
     // Allocate fast chunk bins on the heap.
     fast_caches = (struct slab**)_metadata_alloc(8 * sizeof(struct slab*));
 
-    //_allocate_fast_bin_page(16, &fast_chunk_bins[0]);
-    //print_list(fast_chunk_bins[0]);
 
     // Allocate large chunk bins on the heap.
     large_chunk_bin = (struct large_chunk**)_metadata_alloc(sizeof(struct large_chunk*));
@@ -310,7 +308,6 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.next = next_slab;
     metadata.prev = NULL;
 
-
     if (next_slab != NULL) {
         struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)next_slab);
         if (next_slab_entry != NULL) next_slab_entry->value.prev = (struct slab*)new_page;
@@ -344,7 +341,7 @@ void _push_slab(struct slab* slab) {
 
     slab->next = slab->prev = NULL;
 
-    struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
+    struct slab** cache = &(fast_caches[get_slab_cache_index(size_class)]);
 
     struct slab* next_slab = (*cache);
 
@@ -396,19 +393,6 @@ void* _slab_alloc(struct slab** cache) {
 }
 
 /*
-    Function used for debugging.
-*/
-void print_list(struct fast_chunk* hd) 
-{
-    struct fast_chunk* curr = hd;
-    int counter = 1;
-    while (curr != NULL) {
-        curr = curr->fd;
-        counter++;  
-    }
-}
-
-/*
     Allocates some heap memory for the user.
 
     OK I think I need a function for something. 
@@ -423,13 +407,10 @@ void* heap_alloc(size_t bytes)
     int size_class = determine_size_class(bytes); 
 
     if (size_class != -1) {
-        struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
+        struct slab** cache = &(fast_caches[get_slab_cache_index(size_class)]);
     
         struct map_entry* entry = addr_map_lookup((uintptr_t)*cache);
 
-
-        /* THERE MUST BE SOME ADDITIONAL LOGIC HERE TO FIND A FREE CACHE, EVEN IF THE ONE AT THE BEGINNING ISNT FREE, THERE COULD BE A FREE SLOT IN A LATER CACHE 
-           I CAN MAKE A HELPER FOR THIS */
         if ((entry == NULL) || (entry->value.free_count == 0)) {
             _allocate_fast_page(size_class, cache); 
         }
