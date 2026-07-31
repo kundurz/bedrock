@@ -308,11 +308,53 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.slot_count = PAGE_SIZE_BYTES / size_class;
     metadata.free_count = metadata.slot_count;
     metadata.next = next_slab;
+    metadata.prev = NULL;
+
+
+    if (next_slab != NULL) {
+        struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)next_slab);
+        if (next_slab_entry != NULL) next_slab_entry->value.prev = (struct slab*)new_page;
+    }
 
     // Insert the metadata in the hash map
     addr_map_insert((uintptr_t)new_page, metadata);
 
     *cache = (struct slab*)new_page;
+}
+
+void _unlink_slab(struct slab** cache, struct slab* slab) {
+    // I need to make this into a doubly linked list.
+    if (slab->prev == NULL) 
+        *cache = slab->next;
+
+    struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)slab->next);
+    struct map_entry* prev_slab_entry = addr_map_lookup((uintptr_t)slab->prev);
+
+
+    if (next_slab_entry != NULL) next_slab_entry->value.prev = slab->prev;
+    if (prev_slab_entry != NULL) prev_slab_entry->value.next = slab->next; 
+
+    slab->next = NULL;
+    slab->prev = NULL;
+}
+
+void _push_slab(struct slab* slab) {
+    // Determine its size class. 
+    size_t size_class = slab->size_class;
+
+    slab->next = slab->prev = NULL;
+
+    struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
+
+    struct slab* next_slab = (*cache);
+
+    if (next_slab != NULL) {
+        struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)next_slab);
+        next_slab_entry->value.prev = slab->base; 
+    }
+
+    slab->next = next_slab;
+    *cache = (struct slab*)slab->base;
 }
 
 /*
@@ -323,26 +365,32 @@ void _allocate_fast_page(int size_class, struct slab** cache)
 
     I'm wondering if this even accounts for the case where 
 */
-void* _slab_alloc(struct slab* cache) {
+void* _slab_alloc(struct slab** cache) {
     int i = 0;
 
-    struct map_entry* map_entry = addr_map_lookup(cache);
+    struct map_entry* map_entry = addr_map_lookup((uintptr_t)*cache);
     struct slab* free_slab = &(map_entry->value);
+
 
     for (; i < free_slab->slot_count; i++) {
         if (free_slab->alloc_bytemap[i] == 0)
             break;
     }
 
+
     if (i == free_slab->slot_count) // Prevents silent out of bounds writes if free_count gets out of sync.
         return NULL;
+
    
     free_slab->alloc_bytemap[i] = 0xff;
     free_slab->free_count--;
 
-    // We have to return 
-    //void* slot_address = (char*)((char*)cache  + sizeof(struct slab)) + (cache->size_class * i);
-    void* slot_address = (char*)cache + (free_slab->size_class * i);
+
+    if (free_slab->free_count == 0) {
+        _unlink_slab(cache, free_slab); 
+    }
+
+    void* slot_address = (char*)free_slab->base + (free_slab->size_class * i);
 
     return slot_address;
 }
@@ -376,14 +424,17 @@ void* heap_alloc(size_t bytes)
 
     if (size_class != -1) {
         struct slab** cache = &(fast_caches[get_fast_chunk_index(size_class)]);
-        
-        struct map_entry* entry = addr_map_lookup(*cache);
+    
+        struct map_entry* entry = addr_map_lookup((uintptr_t)*cache);
 
-        if (entry == NULL || entry->value.free_count == 0) {
+
+        /* THERE MUST BE SOME ADDITIONAL LOGIC HERE TO FIND A FREE CACHE, EVEN IF THE ONE AT THE BEGINNING ISNT FREE, THERE COULD BE A FREE SLOT IN A LATER CACHE 
+           I CAN MAKE A HELPER FOR THIS */
+        if ((entry == NULL) || (entry->value.free_count == 0)) {
             _allocate_fast_page(size_class, cache); 
         }
         
-        void* pointer = _slab_alloc(*cache); 
+        void* pointer = _slab_alloc(cache); 
 
         return pointer; 
 
@@ -412,19 +463,21 @@ void heap_free(void* ptr)
     uintptr_t page_base = (uintptr_t)ptr & ~0xFFF;
     uintptr_t slot_start = (uintptr_t)ptr & 0xFFF;
 
-    struct map_entry* entry = addr_map_lookup(page_base);
+    struct map_entry* entry = addr_map_lookup((uintptr_t)page_base);
 
     if (entry == NULL)  // This could also mean its a lerge chunk, so later we'll have to make this check pertian to that case. 
         return;
 
     size_t size = entry->value.size_class;
 
-
-
     if (size <= 2048) {
         int bytemap_index = slot_start / size;
         entry->value.alloc_bytemap[bytemap_index] = 0x00;
         entry->value.free_count++;
+
+        if (entry->value.free_count == 1) {
+            _push_slab(&(entry->value));
+        }
 
     } else {
         struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
