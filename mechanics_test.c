@@ -16,9 +16,6 @@ static void test_fast_alloc_unique_and_writable(void)
         ptrs[i] = heap_alloc(32);
         assert(ptrs[i] != NULL);
 
-        puts("--- MEMSET STATUS ---");
-        printf("i = %d\n", i);
-        printf("ptr = %p\n", ptrs[i]);
         memset(ptrs[i], 0x41 + (i % 26), 32);
 
         for (int j = 0; j < i; j++) {
@@ -99,9 +96,9 @@ int main(void)
 {
     test_fast_alloc_unique_and_writable();
     puts("Fast allocator tests passed.");
-    //test_large_alloc_writable();
-    //test_large_split_and_coalesce();
-    //test_large_reuse_after_coalesce();
+    test_large_alloc_writable();
+    test_large_split_and_coalesce();
+    test_large_reuse_after_coalesce();
 
     puts("All allocator tests passed.");
     return 0;
