@@ -35,7 +35,7 @@ int determine_size_class(int size)
     return (cls > 2048) ? -1 : cls;
 }
 
-int get_fast_chunk_index(int size_class) {
+int get_slab_cache_index(int size_class) {
     switch(size_class) {
         case 16:
             return 0;
