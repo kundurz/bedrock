@@ -1,7 +1,10 @@
+#pragma once
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include "heap_internal.h"
+#include "secure_utils.h"
 
 /* HASH MAP ENTRY AND STATE STRUCTS */
 struct map_entry {
@@ -13,6 +16,7 @@ struct map_entry {
 };
 
 struct hash_map_state {
+    struct guarded_region guard_region;
     struct map_entry* base;
 
     size_t size; // size in bytes

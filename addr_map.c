@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include "addr_map.h"
 #include "utils.h"
+#include "secure_utils.h"
 
 #define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL // Mathematical constant used to achieve highly uniform data distribution.
 
@@ -45,14 +46,8 @@ int initialize_hash_map() {
     if (generate_salt(&map_state.random_salt) != 0)
         return -1;
 
-    map_state.base = mmap(
-        NULL, 
-        4096,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANON,
-        -1, 
-        0
-    );
+    map_state.guard_region = create_gaurded_region(4096);
+    map_state.base = map_state.guard_region.usable_ptr;
 
     if (map_state.base == MAP_FAILED)
         return -1;
@@ -113,6 +108,7 @@ static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab m
 // When we resize a hash map, we almost have to create a new one.
 // This should also take place releti
 static void resize_map() {
+    struct guarded_region guarded_region = map_state.guard_region;
     struct map_entry* old_base = map_state.base;
     uint64_t old_capacity = map_state.capacity;
     size_t old_size = map_state.size;
@@ -120,14 +116,8 @@ static void resize_map() {
     map_state.size *= 2; 
     map_state.capacity *= 2; 
 
-    map_state.base =  mmap(
-        NULL, 
-        map_state.size,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANON,
-        -1, 
-        0
-    );
+    map_state.guard_region = create_gaurded_region(map_state.size);
+    map_state.base = map_state.guard_region.usable_ptr;
 
     for (int i = 0; i < old_capacity; i++) {
         struct map_entry* curr = old_base + i;
@@ -135,10 +125,7 @@ static void resize_map() {
             robin_hood_resolution(curr->key, curr->value);
     }
 
-    if(munmap(old_base, old_size)) {
-        fprintf(stderr, "Could not unmap old memory: %p\n", old_base);
-        exit(-1);
-    }
+    destroy_guarded_region(&guarded_region); 
 }
 
 /* This is returning an integer because if something goes wrong, i want to return an error. */
