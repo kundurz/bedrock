@@ -1,3 +1,2 @@
-1) Guard pages
-2) Large allocation registry for pointers, honestly a set is probably best
-3) Large alloc revamp
+1) Large allocation registry for pointers, honestly a set is probably best
+2) Large alloc revamp 

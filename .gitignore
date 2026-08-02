@@ -6,3 +6,4 @@ fast_slab_overflow_test
 addr_map_test
 design_rough_notes.md
 mechanics_test
+.gdb_history
