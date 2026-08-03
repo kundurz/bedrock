@@ -133,7 +133,8 @@ int _heap_init()
     // Allocate large chunk bins on the heap.
     large_chunk_bin = (struct large_chunk**)_metadata_alloc(sizeof(struct large_chunk*));
 
-    initialize_hash_map();
+    initialize_hash_map(SMALL);
+    initialize_hash_map(LARGE);
 
     return 0;
 }
@@ -309,12 +310,13 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.prev = NULL;
 
     if (next_slab != NULL) {
-        struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)next_slab);
-        if (next_slab_entry != NULL) next_slab_entry->value.prev = (struct slab*)new_page;
+        struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)next_slab);
+        if (next_slab_entry != NULL) next_slab_entry->value.slab.prev = (struct slab*)new_page;
     }
 
     // Insert the metadata in the hash map
-    addr_map_insert((uintptr_t)new_page, metadata);
+    struct map_value map_value = construct_map_value(&metadata, NULL);
+    addr_map_insert(SMALL, (uintptr_t)new_page, map_value);
 
     *cache = (struct slab*)new_page;
 }
@@ -324,12 +326,12 @@ void _unlink_slab(struct slab** cache, struct slab* slab) {
     if (slab->prev == NULL) 
         *cache = slab->next;
 
-    struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)slab->next);
-    struct map_entry* prev_slab_entry = addr_map_lookup((uintptr_t)slab->prev);
+    struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)slab->next);
+    struct map_entry* prev_slab_entry = addr_map_lookup(SMALL, (uintptr_t)slab->prev);
 
 
-    if (next_slab_entry != NULL) next_slab_entry->value.prev = slab->prev;
-    if (prev_slab_entry != NULL) prev_slab_entry->value.next = slab->next; 
+    if (next_slab_entry != NULL) next_slab_entry->value.slab.prev = slab->prev;
+    if (prev_slab_entry != NULL) prev_slab_entry->value.slab.next = slab->next; 
 
     slab->next = NULL;
     slab->prev = NULL;
@@ -346,8 +348,8 @@ void _push_slab(struct slab* slab) {
     struct slab* next_slab = (*cache);
 
     if (next_slab != NULL) {
-        struct map_entry* next_slab_entry = addr_map_lookup((uintptr_t)next_slab);
-        next_slab_entry->value.prev = slab->base; 
+        struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)next_slab);
+        next_slab_entry->value.slab.prev = slab->base; 
     }
 
     slab->next = next_slab;
@@ -365,8 +367,8 @@ void _push_slab(struct slab* slab) {
 void* _slab_alloc(struct slab** cache) {
     int i = 0;
 
-    struct map_entry* map_entry = addr_map_lookup((uintptr_t)*cache);
-    struct slab* free_slab = &(map_entry->value);
+    struct map_entry* map_entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
+    struct slab* free_slab = &(map_entry->value.slab);
 
 
     for (; i < free_slab->slot_count; i++) {
@@ -409,9 +411,9 @@ void* heap_alloc(size_t bytes)
     if (size_class != -1) {
         struct slab** cache = &(fast_caches[get_slab_cache_index(size_class)]);
     
-        struct map_entry* entry = addr_map_lookup((uintptr_t)*cache);
+        struct map_entry* entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
 
-        if ((entry == NULL) || (entry->value.free_count == 0)) {
+        if ((entry == NULL) || (entry->value.slab.free_count == 0)) {
             _allocate_fast_page(size_class, cache); 
         }
         
@@ -444,20 +446,20 @@ void heap_free(void* ptr)
     uintptr_t page_base = (uintptr_t)ptr & ~0xFFF;
     uintptr_t slot_start = (uintptr_t)ptr & 0xFFF;
 
-    struct map_entry* entry = addr_map_lookup((uintptr_t)page_base);
+    struct map_entry* entry = addr_map_lookup(SMALL, (uintptr_t)page_base);
 
     if (entry == NULL)  // This could also mean its a lerge chunk, so later we'll have to make this check pertian to that case. 
         return;
 
-    size_t size = entry->value.size_class;
+    size_t size = entry->value.slab.size_class;
 
     if (size <= 2048) {
         int bytemap_index = slot_start / size;
-        entry->value.alloc_bytemap[bytemap_index] = 0x00;
-        entry->value.free_count++;
+        entry->value.slab.alloc_bytemap[bytemap_index] = 0x00;
+        entry->value.slab.free_count++;
 
-        if (entry->value.free_count == 1) {
-            _push_slab(&(entry->value));
+        if (entry->value.slab.free_count == 1) {
+            _push_slab(&(entry->value.slab));
         }
 
     } else {
