@@ -10,7 +10,8 @@
 
 #define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL // Mathematical constant used to achieve highly uniform data distribution.
 
-static struct hash_map_state map_state; 
+static struct hash_map_state slab_map; 
+static struct hash_map_state large_map;
 
 static int generate_salt(uint64_t *salt) {
     unsigned char* output = (unsigned char *)salt;
@@ -42,26 +43,68 @@ static uint64_t hash_address(uintptr_t addr, uint64_t salt)
     return x ^ (x >> 31);
 }
 
-int initialize_hash_map() {
-    if (generate_salt(&map_state.random_salt) != 0)
+int initialize_hash_map(enum map_type self) {
+    struct hash_map_state* map_state;
+
+    if (self == LARGE) {
+        map_state = &large_map;
+    } else if (self == SMALL) {
+        map_state = &slab_map;
+    } else {
+        return -1;
+    }
+
+    if (generate_salt(&(map_state->random_salt)) != 0)
         return -1;
 
-    map_state.guard_region = create_gaurded_region(4096);
-    map_state.base = map_state.guard_region.usable_ptr;
+    map_state->guard_region = create_gaurded_region(4096);
+    map_state->base = map_state->guard_region.usable_ptr;
 
-    if (map_state.base == MAP_FAILED)
+    if (map_state->base == MAP_FAILED)
         return -1;
 
-    map_state.size = 4096;
-    map_state.capacity = round_down_power_of_two(map_state.size / sizeof(struct map_entry));
-    map_state.occupied_slots = 0;
+    map_state->size = 4096;
+    map_state->capacity = round_down_power_of_two(map_state->size / sizeof(struct map_entry));
+    map_state->occupied_slots = 0;
 
     return 0;
 }
 
-static int _addr_map_access_index_key(int index) 
+int map_select(enum map_type self, struct hash_map_state** map_state) {
+    if (self == LARGE) {
+        *map_state = &large_map;
+    } else if (self == SMALL) {
+        *map_state = &slab_map;
+    } else {
+        return -1;
+    }
+
+    return 0; // Success
+}
+
+struct map_value construct_map_value(struct slab* slab_metadata, struct large_meta* large_metadata) {
+    struct map_value value; 
+    if (slab_metadata != NULL) {
+        value.type = SMALL;
+        value.slab = *slab_metadata;
+    } else if (large_metadata != NULL) {
+        value.type = LARGE;
+        value.large = *large_metadata;
+    }
+
+    return value;
+}
+
+static int _addr_map_access_index_key(enum map_type self, int index) 
 {
-    struct map_entry* relevant_entry = (struct map_entry*)map_state.base + index; 
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return -1;
+
+    struct map_entry* relevant_entry = (struct map_entry*)map_state->base + index; 
 
     return relevant_entry->key;
 }
@@ -69,18 +112,25 @@ static int _addr_map_access_index_key(int index)
 // We need to have a "targetKey" and a "targetValue" variable.
 // The targetkey variable can change based on an insertion, but
 // we need to keep track of the inserted index that we inserted the very first thing.
-static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab metadata_value) {
-    int home_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t addr_key, struct map_value metadata_value) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return NULL;
+
+    int home_entry_index = hash_address(addr_key, map_state->random_salt) % map_state->capacity;
     
     uintptr_t targetKey = addr_key;
-    struct slab targetValue = metadata_value; 
+    struct map_value targetValue = metadata_value; 
     uint8_t targetDib = 0;
     struct map_entry* inserted_entry = NULL;
 
     // use modulo to bound everything later.
     // I USE TRUE HERE SO THAT IT WRAPS AROUND, DO NOT GUARD IT1
     for (int i = home_entry_index; true ; i++) {
-        struct map_entry* curr = (struct map_entry*)map_state.base + (i % map_state.capacity); 
+        struct map_entry* curr = (struct map_entry*)map_state->base + (i % map_state->capacity); 
         if (curr->is_occupied) {
             if (targetDib > curr->dib) {
                 if (inserted_entry == NULL) inserted_entry = curr;
@@ -107,78 +157,111 @@ static struct map_entry* robin_hood_resolution(uintptr_t addr_key, struct slab m
 
 // When we resize a hash map, we almost have to create a new one.
 // This should also take place releti
-static void resize_map() {
-    struct guarded_region guarded_region = map_state.guard_region;
-    struct map_entry* old_base = map_state.base;
-    uint64_t old_capacity = map_state.capacity;
-    size_t old_size = map_state.size;
+static void resize_map(enum map_type self) {
+    struct hash_map_state* map_state;
 
-    map_state.size *= 2; 
-    map_state.capacity *= 2; 
+    int success = map_select(self, &map_state); 
 
-    map_state.guard_region = create_gaurded_region(map_state.size);
-    map_state.base = map_state.guard_region.usable_ptr;
+    if (success == -1)
+        return;
+
+    struct guarded_region guarded_region = map_state->guard_region;
+    struct map_entry* old_base = map_state->base;
+    uint64_t old_capacity = map_state->capacity;
+    size_t old_size = map_state->size;
+
+    map_state->size *= 2; 
+    map_state->capacity *= 2; 
+
+    map_state->guard_region = create_gaurded_region(map_state->size);
+    map_state->base = map_state->guard_region.usable_ptr;
 
     for (int i = 0; i < old_capacity; i++) {
         struct map_entry* curr = old_base + i;
         if (curr->is_occupied)
-            robin_hood_resolution(curr->key, curr->value);
+            robin_hood_resolution(self, curr->key, curr->value);
     }
 
     destroy_guarded_region(&guarded_region); 
 }
 
 /* This is returning an integer because if something goes wrong, i want to return an error. */
-int addr_map_insert(uintptr_t addr_key, struct slab metadata_value) {
-    double load_factor = (double)map_state.occupied_slots / map_state.capacity;
+int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value metadata_value) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return -1;
+
+    double load_factor = (double)map_state->occupied_slots / map_state->capacity;
 
     if (load_factor > 0.7) {
-        resize_map();
+        resize_map(self);
     }
 
-    int map_entry_index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+    int map_entry_index = hash_address(addr_key, map_state->random_salt) % map_state->capacity;
 
-    struct map_entry* relevant_entry = robin_hood_resolution(addr_key, metadata_value);
+    struct map_entry* relevant_entry = robin_hood_resolution(self, addr_key, metadata_value);
     
-    map_state.occupied_slots += 1;
+    map_state->occupied_slots += 1;
 
     return relevant_entry != NULL;
 }
 
 // I think we can just search linearly form the starting position. 
-struct map_entry* addr_map_lookup(uintptr_t addr_key) {
+struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
+    struct hash_map_state* map_state;
 
-    if (addr_key == NULL) 
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
         return NULL;
-    int index = hash_address(addr_key, map_state.random_salt) % map_state.capacity;
+
+    if ((void*)addr_key == NULL) 
+        return NULL;
+
+    int index = hash_address(addr_key, map_state->random_salt) % map_state->capacity;
 
     bool entry_is_occupied = true;
     while (entry_is_occupied) {
-        struct map_entry* curr = (struct map_entry*)map_state.base + (index); 
+        struct map_entry* curr = (struct map_entry*)map_state->base + (index); 
         if (curr->is_occupied) {
             if (curr->key == addr_key)
                 return curr;
         } else {
             break;
         }
-        index = (index + 1) % map_state.capacity;
+        index = (index + 1) % map_state->capacity;
     }
 
     return NULL; // entry not found.
 }
 
-void addr_map_enumerate() {
-    for (int i = 0; i < map_state.capacity; i++) {
-        struct map_entry* curr = map_state.base + i;
+void addr_map_enumerate(enum map_type self) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return;
+
+    for (int i = 0; i < map_state->capacity; i++) {
+        struct map_entry* curr = map_state->base + i;
         printf("| key = %lx |\n", curr->key);
     }
 }
 
-void print_map_state() {
+void print_map_state(enum map_type self) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return;
+
     printf("--- CURRENT MAP STATE ---\n");
-    printf("MAP SIZE: %ld BYTES\n", map_state.size);
-    printf("MAP CAPACITY: %ld ENTRIES\n", map_state.capacity);
+    printf("MAP SIZE: %ld BYTES\n", map_state->size);
+    printf("MAP CAPACITY: %ld ENTRIES\n", map_state->capacity);
 }
-
-
 
