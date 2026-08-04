@@ -2,11 +2,16 @@
 #include "addr_map.h"
 #include "large_allocations.h"
 #include "secure_utils.h"
+#include "ring_cache.h"
 
 void* hardened_large_malloc(size_t payload_size) {
     struct guarded_region region;
 
-    region = create_gaurded_region(payload_size); 
+    // First we're gonna look for a ring cache
+    region = get_best_fit_entry(payload_size); 
+    if (region.usable_ptr == NULL)
+        region = create_gaurded_region(payload_size); 
+
     struct large_meta large_metadata;
 
     large_metadata.mmap_base = region.mmap_base;
@@ -31,5 +36,5 @@ void hardened_large_free(void* ptr) {
     region.total_size = map_entry->value.large.total_size;
     region.usable_ptr = ptr;
 
-    destroy_guarded_region(&region);
+    insert_cache_entry(region); // This will handle it being destroyed later. 
 }
