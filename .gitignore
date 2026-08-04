@@ -7,3 +7,4 @@ addr_map_test
 design_rough_notes.md
 mechanics_test
 .gdb_history
+large_allocations_test
