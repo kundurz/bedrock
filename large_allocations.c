@@ -4,7 +4,7 @@
 #include "secure_utils.h"
 #include "ring_cache.h"
 
-void* hardened_large_malloc(size_t payload_size) {
+void* hardened_large_alloc(size_t payload_size) {
     struct guarded_region region;
 
     // First we're gonna look for a ring cache

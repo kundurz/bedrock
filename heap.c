@@ -5,13 +5,15 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <stddef.h>
+#include <unistd.h>
 #include <assert.h>
 #include "heap_internal.h"
 #include "utils.h"
 #include "addr_map.h"
+#include "ring_cache.h"
+#include "large_allocations.h"
 
 struct slab** fast_caches;
-struct large_chunk** large_chunk_bin;
 
 char* metadata_start;
 char* metadata_current;
@@ -32,62 +34,6 @@ void print_slab(struct slab* slab) {
 void print_all_slabs() {
     for (int i = 0; i < 8; i++)
         print_slab(fast_caches[i]);
-}
-
-/* Heap utility functions for large bin. */
-struct large_chunk* next_physical_chunk(struct large_chunk* chunk) {
-    struct large_chunk* next = (struct large_chunk*)((char*)chunk + sizeof(struct large_chunk) + chunk->size);
-
-    if (chunk_in_span(chunk, next))
-        return next;
-
-    return NULL;
-}
-
-struct large_chunk* prev_physical_chunk(struct large_chunk* chunk) {
-    struct large_chunk* prev = (struct large_chunk*)((char*)chunk - sizeof(struct large_chunk) - chunk->prev_size);
-
-    if (chunk_in_span(chunk, prev))
-        return prev;
-
-    return NULL;
-}
-
-int chunk_in_span(struct large_chunk* ref_chunk, struct large_chunk* adj_chunk) {
-
-    return (void*)adj_chunk >= (void*)ref_chunk->span.start && (void*)adj_chunk < (void*)ref_chunk->span.end;
-}
-
-void unlink_large_free_chunk(struct large_chunk* chunk) {
-    if (chunk->bk == NULL) // In the case that it is the first chunk.
-        *large_chunk_bin = chunk->fd;
-    if (chunk->fd != NULL)
-        chunk->fd->bk = chunk->bk; // this is the only one required since the chunk is at the beginning of the free list.
-    if (chunk->bk != NULL)
-        chunk->bk->fd = chunk->fd;
-    chunk->allocated = 1;
-}
-
-void insert_large_free_chunk(struct large_chunk* chunk) {
-    if (*large_chunk_bin != NULL) 
-        (*large_chunk_bin)->bk = chunk;
-
-    chunk->fd = *(large_chunk_bin);
-    chunk->bk = NULL;
-    *large_chunk_bin = chunk;
-}
-
-void print_large_bin_contents() {
-    struct large_chunk* curr = *large_chunk_bin;
-
-    while (curr != NULL) {
-        printf(" | size = %ld, next = %p | -> ", curr->size, curr->fd);
-
-        curr = curr->fd;
-    }
-
-
-    printf(" NULL\n");
 }
 
 /* 
@@ -129,151 +75,14 @@ int _heap_init()
     // Allocate fast chunk bins on the heap.
     fast_caches = (struct slab**)_metadata_alloc(8 * sizeof(struct slab*));
 
-
-    // Allocate large chunk bins on the heap.
-    large_chunk_bin = (struct large_chunk**)_metadata_alloc(sizeof(struct large_chunk*));
-
     initialize_hash_map(SMALL);
     initialize_hash_map(LARGE);
+
+    initialize_ring_cache();
 
     return 0;
 }
 
-/*
-    _allocate_large_bin_chunk() allocates and initializes a new large bin chunk
-    and places at the beginning of the large bin.
-
-    List before:
-    Large bin --> chunk1 <--> chunk2 --> NULL
-    
-    List After:
-    Large bin --> new chunk <--> chunk1 <--> chunk2 --> NULL
-
-    This is done because it is simplest, but I may opt for a more secure method later. 
-*/
-struct large_chunk* _allocate_large_bin_chunk(int size, struct large_chunk** bin) 
-{
-    size += sizeof(struct large_chunk);
-    char* new_page = (char*)mmap(
-        NULL, 
-        size, 
-        PROT_READ | PROT_WRITE, 
-        MAP_PRIVATE | MAP_ANON, 
-        -1,
-        0
-    );
-
-    // I need to turn this into a valid chunk, first I need to round up to the next page size, 
-    struct large_chunk* new_chunk = (struct large_chunk*)new_page;
-    new_chunk->size = round_to_nearest_page(size) - sizeof(struct large_chunk);
-    
-    if ((*bin) != NULL)
-        (*bin)->bk = new_chunk;
-
-    new_chunk->allocated = 0;
-    new_chunk->fd = *bin;
-    new_chunk->bk = NULL;
-    new_chunk->span.start = new_page;
-    new_chunk->span.end = (char*)new_page + new_chunk->size + sizeof(struct large_chunk);
-    new_chunk->prev_size = -1;
-
-
-    *bin = new_chunk;
-
-    return new_chunk;
-}
-
-/*
-    _search_large_bin() goes through the large bin to
-*/
-struct large_chunk* _search_large_bin_first_fit(int size) {
-    struct large_chunk* curr = *large_chunk_bin;
-
-    // I'll start with first fit for simplicity.
-    while (curr != NULL) {
-        if (curr->allocated == 0 && curr->size >= size) {
-            return curr;
-        }
-        curr = curr->fd;
-    }
-
-    return NULL;
-}
-
-/*
-    _split_large_chunk() will modify chunk such that 
-    size bytes are split off of it. 
-
-    chunk is modified with a new size. 
-*/
-void _split_large_chunk(struct large_chunk* chunk, int size) {
-    // We subtract the size of the chunk we want
-    // Then we subtract the size of a header because
-    // the new chunk will have to have a header added to it as well.
-    // chunk->size is used because we count up to "size" bytes starting from the user data section.
-    if (chunk->size - size < sizeof(struct large_chunk)) 
-        return;
-
-    size_t new_size = chunk->size - size; 
-
-    char* free_space = ((char*)chunk + sizeof(struct large_chunk));
-    struct large_chunk* split_chunk = (struct large_chunk*)(free_space + size);
-
-    split_chunk->fd = chunk->fd;
-    split_chunk->bk = chunk;
-    split_chunk->allocated = 0;
-    split_chunk->prev_size = size;
-    split_chunk->span = chunk->span;
-    split_chunk->size = new_size - sizeof(struct large_chunk);
-
-    chunk->fd = split_chunk; 
-    chunk->size = size;
-    chunk->allocated = 0; 
-
-    // Update next chunk in doubly linked list.
-    if (split_chunk->fd != NULL) 
-        split_chunk->fd->bk = split_chunk;
-
-    // Update physical next chunk
-    struct large_chunk *next = next_physical_chunk(split_chunk);
-
-    if (next != NULL) 
-        next->prev_size = split_chunk->size;
-    
-    
-}
-
-/*
-    _merge_two_large_chunks() 
-
-    Assuming chunk1 at a lower address than chunk2
-*/
-void _merge_two_large_chunks(struct large_chunk* chunk1, struct large_chunk* chunk2) {
-    
-    // UPDATE RELEVANT METADATA
-    chunk1->size += chunk2->size + sizeof(struct large_chunk); // We can now use the header from chunk2 as free space
-    struct large_chunk* next = (struct large_chunk*)((char*)chunk1 + sizeof(struct large_chunk) + chunk1->size);
-
-    if ((char*)next < (char*)chunk1->span.end) {
-        next->prev_size = chunk1->size;
-    }
-
-    if (chunk2->bk != NULL) {
-        chunk2->bk->fd = chunk2->fd;
-    } else {
-        *large_chunk_bin = chunk2->fd;
-    }
-
-    if (chunk2->fd != NULL) {
-        chunk2->fd->bk = chunk2->bk;
-    }
-
-    chunk2->fd = NULL;
-    chunk2->bk = NULL;
-
-    // It may be beneifical to zero out chunk 2's metadata at some point,
-    chunk1->allocated = 0;
-}
 
 /*
     _allocate_fast_page() is a function called to get more memory
@@ -405,6 +214,7 @@ void* heap_alloc(size_t bytes)
         heap_initialized = 1;
         _heap_init();
     }
+
     // Determining the correct size class.
     int size_class = determine_size_class(bytes); 
 
@@ -421,22 +231,14 @@ void* heap_alloc(size_t bytes)
 
         return pointer; 
 
-    } else {
-        // Search for a valid size large chunk.
-        struct large_chunk* chunk = _search_large_bin_first_fit(bytes); // Looks ok 
-
-        if (chunk == NULL) {
-            chunk = _allocate_large_bin_chunk(bytes, large_chunk_bin); 
-        } 
-
-        _split_large_chunk(chunk, bytes); // chunk is now the correct size
-
-        unlink_large_free_chunk(chunk);
-
-        return (void*)((char*)chunk + sizeof(struct large_chunk));
-    }
+    }  
+    
+    return hardened_large_alloc(bytes);
 }
 
+void _handle_invalid_free() {
+    _exit(127); 
+}
 /*
     heap_free() is an interface for the user to free heap memory.
 */
@@ -446,14 +248,21 @@ void heap_free(void* ptr)
     uintptr_t page_base = (uintptr_t)ptr & ~0xFFF;
     uintptr_t slot_start = (uintptr_t)ptr & 0xFFF;
 
+    bool is_large = false;
+
     struct map_entry* entry = addr_map_lookup(SMALL, (uintptr_t)page_base);
+    if (entry == NULL) {
+        entry = addr_map_lookup(LARGE, (uintptr_t)ptr); // The regions must be inserted into the hash map using mmap baes. 
+        is_large = true;
+    }
 
-    if (entry == NULL)  // This could also mean its a lerge chunk, so later we'll have to make this check pertian to that case. 
-        return;
+    // The attacker has attempted to free an invalid chunk.
+    if (entry == NULL)  
+        _handle_invalid_free();
 
-    size_t size = entry->value.slab.size_class;
+    if (!is_large) {
+        size_t size = entry->value.slab.size_class;
 
-    if (size <= 2048) {
         int bytemap_index = slot_start / size;
         entry->value.slab.alloc_bytemap[bytemap_index] = 0x00;
         entry->value.slab.free_count++;
@@ -463,30 +272,6 @@ void heap_free(void* ptr)
         }
 
     } else {
-        struct large_chunk* large_chunk = (struct large_chunk*)ptr - 1;
-
-        //struct large_chunk* forward_adj_chunk = (struct large_chunk*)((char*)large_chunk + sizeof(struct large_chunk) + large_chunk->size);
-        struct large_chunk* forward_adj_chunk = next_physical_chunk(large_chunk);
-
-        // We subtract sizeof(struct large chunk) twice because we need to get to the BEGINNING of the previous chunk.
-        struct large_chunk* backward_adj_chunk = prev_physical_chunk(large_chunk);
-
-        // insert_large_free_chunk
-        insert_large_free_chunk(large_chunk);
-                
-
-        int merge_occurred = 0; 
-        if (forward_adj_chunk != NULL && forward_adj_chunk->allocated == 0) {
-            merge_occurred = 1;
-            _merge_two_large_chunks(large_chunk, forward_adj_chunk); // I think it matters the order in which you merge the chunks. Whichever has the lower memory address should be the one that stays in the list.
-        }
-        
-        if (backward_adj_chunk != NULL && backward_adj_chunk->allocated == 0) {            
-            merge_occurred = 1;
-            _merge_two_large_chunks(backward_adj_chunk, large_chunk);
-        }
-
-        if (!merge_occurred) large_chunk->allocated = 0;
-
+        hardened_large_free(ptr);
     }
 }
