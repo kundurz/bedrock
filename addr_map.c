@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include "addr_map.h"
 #include "utils.h"
 #include "secure_utils.h"
@@ -265,3 +266,58 @@ void print_map_state(enum map_type self) {
     printf("MAP CAPACITY: %ld ENTRIES\n", map_state->capacity);
 }
 
+// THIS UTILIZES THE WRAPAROUND 
+static struct map_entry* _increment_map_address(enum map_type self, struct map_entry* ptr) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return NULL;
+
+
+    struct map_entry* next = ptr + 1;
+    if (next >= map_state->base + map_state->capacity) {
+            next = map_state->base;
+    }
+
+    return next;
+} 
+
+static void _backshift_delete(enum map_type self, uintptr_t addr_key) {
+    struct hash_map_state* map_state;
+
+    int success = map_select(self, &map_state); 
+
+    if (success == -1)
+        return;
+
+    struct map_entry* entry = addr_map_lookup(self, addr_key);
+    entry->is_occupied = false;
+    map_state->occupied_slots -= 1; 
+
+    struct map_entry* curr = entry;
+    struct map_entry* next = _increment_map_address(self, curr);
+    
+    while (next->is_occupied && next->dib > 0) {
+        // wrap around
+        if (next > ((char*)map_state->base + map_state->size)) {
+            next = map_state->base;
+        }
+        if (curr > ((char*)map_state->base + map_state->size)) {
+            curr = map_state->base; 
+        }
+
+        *curr = *next;
+        curr->dib--;
+        memset(next, 0, sizeof(struct map_entry));
+    
+
+        curr = _increment_map_address(self, curr);
+        next = _increment_map_address(self, next); 
+    }
+}
+
+void delete_entry(enum map_type self, uintptr_t addr_key) {
+    _backshift_delete(self, addr_key);
+}
