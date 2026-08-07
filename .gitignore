@@ -1,10 +1,5 @@
 *.o
 main
-util_test
-slab_slot_test
-fast_slab_overflow_test
-addr_map_test
 design_rough_notes.md
-mechanics_test
 .gdb_history
-large_allocations_test
+*_test
