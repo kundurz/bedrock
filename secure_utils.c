@@ -52,3 +52,17 @@ void destroy_guarded_region(struct guarded_region* region) {
         perror("munmap failed");
     }
 }
+
+void lock_page(void* base, size_t region_size) {
+    if (mprotect(base, region_size, PROT_NONE) != 0) {
+        perror("mprotect page protect has failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void unlock_page(void* base, size_t region_size) {
+    if (mprotect(base, region_size, PROT_NONE) != 0) {
+        perror("mprotect page unprotect has failed");
+        exit(EXIT_FAILURE);
+    }
+}
