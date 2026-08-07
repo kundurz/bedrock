@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <stdlib.h>
 #include "addr_map.h"
 #include "large_allocations.h"
@@ -9,8 +10,10 @@ void* hardened_large_alloc(size_t payload_size) {
 
     // First we're gonna look for a ring cache
     region = get_best_fit_entry(payload_size); 
-    if (region.usable_ptr == NULL)
+    if (region.usable_ptr == NULL) 
         region = create_gaurded_region(payload_size); 
+    else
+        unlock_page(region.usable_ptr, region.total_size - 2 * sysconf(_SC_PAGESIZE));
 
     struct large_meta large_metadata;
 
@@ -36,5 +39,8 @@ void hardened_large_free(void* ptr) {
     region.total_size = map_entry->value.large.total_size;
     region.usable_ptr = ptr;
 
+    delete_entry(LARGE, (uintptr_t)ptr);
+
+    lock_page(ptr, region.total_size - 2 * sysconf(_SC_PAGESIZE));
     insert_cache_entry(region); // This will handle it being destroyed later. 
 }
