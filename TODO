@@ -1,4 +1,4 @@
-1) Integrate large allocations into main heap.c (double free check please).
-2) backward-shift deletion for hash map
-3) Make sure double free protection is set in stone.
-4) HARDEN THE CACHE BY MAKING PAGES PROT_NONE WHILE THEY'RE IN THE CACHE
+1) In-header/Out of band canaries
+2) Metadata XOR encoding / Cookie protection
+3) Automatic memory zeroing
+4) Delayed free quarantine (slab-level quarantine)
