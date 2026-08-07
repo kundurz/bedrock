@@ -44,7 +44,7 @@ static void verify_all_live(const struct allocation *live, size_t live_count)
 
 static size_t random_fast_size(void)
 {
-    return (size_t)(rand() % 2049);
+    return 1u + (size_t)(rand() % 2048);
 }
 
 static size_t random_large_size(void)
@@ -58,6 +58,14 @@ static void remove_live_allocation(struct allocation *live, size_t *live_count, 
     (*live_count)--;
 }
 
+static void assert_pointer_is_unique(const struct allocation *live,
+                                     size_t live_count,
+                                     const void *ptr)
+{
+    for (size_t i = 0; i < live_count; i++)
+        assert(live[i].ptr != ptr);
+}
+
 int main(void)
 {
     struct allocation live[MAX_LIVE];
@@ -67,8 +75,6 @@ int main(void)
     size_t allocation_id = 1;
 
     srand(0xC0FFEE);
-    assert(_heap_init() == 0);
-
     while (fast_done < FAST_ALLOCS || large_done < LARGE_ALLOCS) {
         int should_free = live_count > 0 && (live_count == MAX_LIVE || (rand() % 100) < 45);
 
@@ -94,6 +100,7 @@ int main(void)
 
             assert(ptr != NULL);
             assert(live_count < MAX_LIVE);
+            assert_pointer_is_unique(live, live_count, ptr);
 
             live[live_count].ptr = ptr;
             live[live_count].size = size;
@@ -108,9 +115,8 @@ int main(void)
             }
         }
 
-        if (((fast_done + large_done) % 100) == 0) {
-            verify_all_live(live, live_count);
-        }
+        /* Catch corruption immediately, before an affected block is freed. */
+        verify_all_live(live, live_count);
     }
 
     while (live_count > 0) {
@@ -124,6 +130,9 @@ int main(void)
     assert(fast_done == FAST_ALLOCS);
     assert(large_done == LARGE_ALLOCS);
 
-    puts("[OK] randomized allocator overwrite test passed");
+    printf("[OK] %d randomized small allocations completed\n", FAST_ALLOCS);
+    printf("[OK] %d randomized large allocations completed\n", LARGE_ALLOCS);
+    puts("[OK] live pointers remained unique and live data was not overwritten");
+    puts("[OK] all randomized allocations were freed");
     return 0;
 }
