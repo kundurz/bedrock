@@ -239,6 +239,7 @@ void* heap_alloc(size_t bytes)
 void _handle_invalid_free() {
     _exit(127); 
 }
+
 /*
     heap_free() is an interface for the user to free heap memory.
 */
@@ -264,6 +265,10 @@ void heap_free(void* ptr)
         size_t size = entry->value.slab.size_class;
 
         int bytemap_index = slot_start / size;
+
+        if (entry->value.slab.alloc_bytemap[bytemap_index] == 0x00)
+            _handle_invalid_free();
+
         entry->value.slab.alloc_bytemap[bytemap_index] = 0x00;
         entry->value.slab.free_count++;
 
