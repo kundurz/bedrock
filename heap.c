@@ -12,6 +12,7 @@
 #include "addr_map.h"
 #include "ring_cache.h"
 #include "large_allocations.h"
+#include "slab_quarantine.h"
 
 struct slab** fast_caches;
 
@@ -79,6 +80,7 @@ int _heap_init()
     initialize_hash_map(LARGE);
 
     initialize_ring_cache();
+    initialize_quarantine_queue();
 
     return 0;
 }
@@ -205,8 +207,6 @@ void* _slab_alloc(struct slab** cache) {
 
 /*
     Allocates some heap memory for the user.
-
-    OK I think I need a function for something. 
 */
 void* heap_alloc(size_t bytes) 
 {
@@ -266,14 +266,30 @@ void heap_free(void* ptr)
 
         int bytemap_index = slot_start / size;
 
-        if (entry->value.slab.alloc_bytemap[bytemap_index] == 0x00)
+        if (entry->value.slab.alloc_bytemap[bytemap_index] == 0x00  || entry->value.slab.alloc_bytemap[bytemap_index] == 0xee)
             _handle_invalid_free();
 
-        entry->value.slab.alloc_bytemap[bytemap_index] = 0x00;
-        entry->value.slab.free_count++;
+        entry->value.slab.alloc_bytemap[bytemap_index] = 0xee; // 0xee means quarantined
 
-        if (entry->value.slab.free_count == 1) {
-            _push_slab(&(entry->value.slab));
+        void* dq_entry = quarantine_dequeue(); 
+        quarantine_enqueue(ptr);
+
+        if (dq_entry == NULL) 
+            return;
+
+        uintptr_t dq_page_base = (uintptr_t)dq_entry & ~0xFFF;
+        uintptr_t dq_slot_start = (uintptr_t)dq_entry & 0xFFF;
+
+        struct map_entry* dq_map_entry = addr_map_lookup(SMALL, dq_page_base);
+        size_t dq_size = dq_map_entry->value.slab.size_class;
+        int dq_bytemap_index = dq_slot_start / dq_size; 
+
+        dq_map_entry->value.slab.alloc_bytemap[dq_bytemap_index] = 0x00;
+        dq_map_entry->value.slab.free_count += 1;
+        
+        // This is gonna be for the slab that was freed.
+        if (dq_map_entry->value.slab.free_count == 1) {
+            _push_slab(&(dq_map_entry->value.slab));
         }
 
     } else {
