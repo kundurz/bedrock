@@ -1,4 +1,2 @@
-1) In-header/Out of band canaries
-2) Metadata XOR encoding / Cookie protection
-3) Automatic memory zeroing
-4) Delayed free quarantine (slab-level quarantine)
+1) Slot randomization and random offset page padding
+2) Automatic memory zeroing
