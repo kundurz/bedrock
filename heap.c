@@ -13,6 +13,7 @@
 #include "ring_cache.h"
 #include "large_allocations.h"
 #include "slab_quarantine.h"
+#include "secure_utils.h"
 
 struct slab** fast_caches;
 
@@ -119,6 +120,10 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.free_count = metadata.slot_count;
     metadata.next = next_slab;
     metadata.prev = NULL;
+    metadata.free_top = 0;
+
+    // Generate indicies using fisher-yates shuffle.
+    fisher_yates_shuffle(metadata.indicies, metadata.slot_count);
 
     if (next_slab != NULL) {
         struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)next_slab);
@@ -176,23 +181,13 @@ void _push_slab(struct slab* slab) {
     I'm wondering if this even accounts for the case where 
 */
 void* _slab_alloc(struct slab** cache) {
-    int i = 0;
-
     struct map_entry* map_entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
     struct slab* free_slab = &(map_entry->value.slab);
 
+    int alloc_bytemap_index = free_slab->indicies[free_slab->free_top];
+    if (free_slab->free_top < free_slab->slot_count) free_slab->free_top = free_slab->free_top + 1;
 
-    for (; i < free_slab->slot_count; i++) {
-        if (free_slab->alloc_bytemap[i] == 0)
-            break;
-    }
-
-
-    if (i == free_slab->slot_count) // Prevents silent out of bounds writes if free_count gets out of sync.
-        return NULL;
-
-   
-    free_slab->alloc_bytemap[i] = 0xff;
+    free_slab->alloc_bytemap[alloc_bytemap_index] = 0xff;
     free_slab->free_count--;
 
 
@@ -200,7 +195,7 @@ void* _slab_alloc(struct slab** cache) {
         _unlink_slab(cache, free_slab); 
     }
 
-    void* slot_address = (char*)free_slab->base + (free_slab->size_class * i);
+    void* slot_address = (char*)free_slab->base + (free_slab->size_class * alloc_bytemap_index);
 
     return slot_address;
 }
@@ -286,6 +281,11 @@ void heap_free(void* ptr)
 
         dq_map_entry->value.slab.alloc_bytemap[dq_bytemap_index] = 0x00;
         dq_map_entry->value.slab.free_count += 1;
+
+        dq_map_entry->value.slab.free_top--;
+        int free_slot = dq_map_entry->value.slab.free_top;
+
+        dq_map_entry->value.slab.indicies[free_slot] = dq_bytemap_index;
         
         // This is gonna be for the slab that was freed.
         if (dq_map_entry->value.slab.free_count == 1) {

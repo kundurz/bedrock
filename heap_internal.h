@@ -25,7 +25,8 @@ struct slab {
     struct slab *prev;
 
     /* Fisher-Yates Array */
-    uint16_t indicies[];
+    uint16_t free_top;
+    uint16_t indicies[256];
 };
 
 /* Internal heap functions */

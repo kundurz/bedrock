@@ -1,7 +1,10 @@
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <time.h>
 #include "secure_utils.h"
 #include "utils.h"
 
@@ -61,8 +64,35 @@ void lock_page(void* base, size_t region_size) {
 }
 
 void unlock_page(void* base, size_t region_size) {
-    if (mprotect(base, region_size, PROT_NONE) != 0) {
+    if (mprotect(base, region_size, PROT_READ | PROT_WRITE) != 0) {
         perror("mprotect page unprotect has failed");
         exit(EXIT_FAILURE);
+    }
+}
+
+int _generate_random_number(int upper_bound) {
+    unsigned int raw_bytes;
+
+    ssize_t result = getrandom(&raw_bytes, sizeof(raw_bytes), 0); 
+
+    if (result < 0) {
+        return -1;
+    }
+
+    unsigned int final_number = raw_bytes % (upper_bound + 1);
+
+    return final_number;
+}
+
+void fisher_yates_shuffle(uint16_t *indicies, size_t length) {
+
+    for (int i = 0; i < length; i++) indicies[i] = i;
+
+    for (int i = length - 1; i > 0; i--) {
+        int j = _generate_random_number(i);
+
+        int tmp = indicies[i];
+        indicies[i] = indicies[j];
+        indicies[j] = tmp;
     }
 }
