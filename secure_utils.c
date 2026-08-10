@@ -4,18 +4,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <time.h>
 #include "secure_utils.h"
 #include "utils.h"
 
-struct guarded_region create_gaurded_region(size_t length) {
+struct guarded_region create_gaurded_region(size_t length, bool add_offset) {
     long page_size = sysconf(_SC_PAGESIZE);
 
     // Round payloa dup to nearest page boundary
     size_t rounded_payload_size = round_to_nearest_page(length);
 
+    size_t offset = 0;
+    if (add_offset) offset = _generate_random_number(rounded_payload_size);
+
+    rounded_payload_size = round_to_nearest_page(rounded_payload_size + offset);
+
     // The total region is the requested length + 2 guard pages
     size_t total_size = rounded_payload_size + (2 * page_size);
+
 
     void *base = mmap(
         NULL, 
@@ -46,6 +53,7 @@ struct guarded_region create_gaurded_region(size_t length) {
     region.mmap_base = base;
     region.usable_ptr = (char*)base + page_size;
     region.total_size = total_size;
+    region.offset = offset;
 
     return region;
 }
