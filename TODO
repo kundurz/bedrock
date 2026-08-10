@@ -1,3 +1,3 @@
-1) Slot randomization and random offset page padding
+1) Random offset page padding
 2) Automatic memory zeroing
 3) Make metadata size smaller
