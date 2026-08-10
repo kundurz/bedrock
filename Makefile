@@ -46,6 +46,9 @@ overflow_test.o: overflow_test.c heap_internal.h
 large_use_after_free_test.o: large_use_after_free_test.c heap_internal.h
 	gcc -c -g large_use_after_free_test.c -o large_use_after_free_test.o
 
+large_offset_test.o: large_offset_test.c heap_internal.h addr_map.h
+	gcc -c -g large_offset_test.c -o large_offset_test.o
+
 slab_quarantine.o: slab_quarantine.c slab_quarantine.h secure_utils.h
 	gcc -c -g slab_quarantine.c -o slab_quarantine.o
 
@@ -85,6 +88,9 @@ overflow_test: overflow_test.o heap.o large_allocations.o ring_cache.o addr_map.
 large_use_after_free_test: large_use_after_free_test.o heap.o large_allocations.o ring_cache.o addr_map.o secure_utils.o utils.o
 	gcc -g large_use_after_free_test.o heap.o large_allocations.o ring_cache.o addr_map.o secure_utils.o utils.o -o large_use_after_free_test
 
+large_offset_test: large_offset_test.o heap.o slab_quarantine.o large_allocations.o ring_cache.o addr_map.o secure_utils.o utils.o
+	gcc -g large_offset_test.o heap.o slab_quarantine.o large_allocations.o ring_cache.o addr_map.o secure_utils.o utils.o -o large_offset_test
+
 slab_quarantine_test: slab_quarantine_test.o slab_quarantine.o secure_utils.o utils.o
 	gcc -g slab_quarantine_test.o slab_quarantine.o secure_utils.o utils.o -o slab_quarantine_test
 
@@ -108,6 +114,9 @@ stress-test: overflow_test
 
 large-uaf-test: large_use_after_free_test
 	./large_use_after_free_test
+
+large-offset-test: large_offset_test
+	./large_offset_test
 
 quarantine-test: slab_quarantine_test
 	./slab_quarantine_test
