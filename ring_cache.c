@@ -26,7 +26,7 @@ static int _search_for_non_occupied_entry() {
 }
 
 void initialize_ring_cache() {
-    struct guarded_region region = create_gaurded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry));
+    struct guarded_region region = create_gaurded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry), false);
 
     cache_base = region.usable_ptr;
     next_entry_index = 0;
@@ -63,7 +63,7 @@ struct guarded_region get_best_fit_entry(size_t payload_size) {
     for (int i = 0; i < NUM_CACHE_BLOCKS; i++) {
         if (!cache_base[i].valid) 
             continue;
-        size_t usable_size = cache_base[i].region.total_size - 2 * sysconf(_SC_PAGESIZE); 
+        size_t usable_size = cache_base[i].region.total_size - 2 * sysconf(_SC_PAGESIZE) - cache_base[i].region.offset; 
         if (usable_size >= payload_size) {
             if (best_fit_size == -1 || usable_size < best_fit_size) {
                 best_fit_size = usable_size;

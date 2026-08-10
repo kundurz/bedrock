@@ -22,6 +22,8 @@ struct large_meta {
     void *mmap_base;
     size_t total_size;
     size_t payload_size;
+
+    size_t offset;
 };
 
 struct map_value {

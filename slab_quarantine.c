@@ -17,7 +17,7 @@ static struct quarantine_entry* _metadata_alloc() {
 }
 
 void initialize_quarantine_queue() {
-    meta_attributes.region = create_gaurded_region(QUEUE_CAPACITY * sizeof(struct quarantine_entry));
+    meta_attributes.region = create_gaurded_region(QUEUE_CAPACITY * sizeof(struct quarantine_entry), false);
     meta_attributes.usable_start = meta_attributes.region.usable_ptr;
     meta_attributes.usable_end = meta_attributes.usable_start + QUEUE_CAPACITY;
     meta_attributes.curr = meta_attributes.usable_start;

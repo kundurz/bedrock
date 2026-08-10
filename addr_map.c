@@ -58,7 +58,7 @@ int initialize_hash_map(enum map_type self) {
     if (generate_salt(&(map_state->random_salt)) != 0)
         return -1;
 
-    map_state->guard_region = create_gaurded_region(4096);
+    map_state->guard_region = create_gaurded_region(4096, false);
     map_state->base = map_state->guard_region.usable_ptr;
 
     if (map_state->base == MAP_FAILED)
@@ -174,7 +174,7 @@ static void resize_map(enum map_type self) {
     map_state->size *= 2; 
     map_state->capacity *= 2; 
 
-    map_state->guard_region = create_gaurded_region(map_state->size);
+    map_state->guard_region = create_gaurded_region(map_state->size, false);
     map_state->base = map_state->guard_region.usable_ptr;
 
     for (int i = 0; i < old_capacity; i++) {
