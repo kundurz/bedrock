@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <sys/mman.h>
 #include <sys/random.h>
 #include <unistd.h>
@@ -67,6 +69,11 @@ void destroy_guarded_region(struct guarded_region* region) {
 void lock_page(void* base, size_t region_size) {
     if (mprotect(base, region_size, PROT_NONE) != 0) {
         perror("mprotect page protect has failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (madvise(base, region_size, MADV_DONTNEED) != 0) {
+        perror("madvise MADV_DONTNEED failed"); 
         exit(EXIT_FAILURE);
     }
 }

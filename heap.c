@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
 #include "heap_internal.h"
 #include "utils.h"
 #include "addr_map.h"
@@ -267,6 +268,8 @@ void heap_free(void* ptr)
         entry->value.slab.alloc_bytemap[bytemap_index] = 0xee; // 0xee means quarantined
 
         void* dq_entry = quarantine_dequeue(); 
+
+        explicit_bzero(ptr, size);
         quarantine_enqueue(ptr);
 
         if (dq_entry == NULL) 
