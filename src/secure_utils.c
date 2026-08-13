@@ -19,7 +19,12 @@ struct guarded_region create_gaurded_region(size_t length, bool add_offset) {
     size_t rounded_payload_size = round_to_nearest_page(length);
 
     size_t offset = 0;
-    if (add_offset) offset = _generate_random_number(rounded_payload_size);
+    if (add_offset) {
+        offset = _generate_random_number(rounded_payload_size);
+
+        size_t alignment = _Alignof(max_align_t);
+        offset = (offset + alignment - 1) & ~(alignment - 1);
+    }
 
     rounded_payload_size = round_to_nearest_page(rounded_payload_size + offset);
 
@@ -86,7 +91,7 @@ void unlock_page(void* base, size_t region_size) {
     }
 }
 
-int _generate_random_number(int upper_bound) {
+int _generate_random_number(size_t upper_bound) {
     unsigned int raw_bytes;
 
     ssize_t result = getrandom(&raw_bytes, sizeof(raw_bytes), 0); 

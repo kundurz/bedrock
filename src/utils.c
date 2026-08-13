@@ -24,7 +24,7 @@
     -1 indicates that the requested chunk is actually a large
     chunk.
 */
-int determine_size_class(int size)
+int determine_size_class(size_t size)
 {
     if (size > 2048) return -1;
     if (size <= 16)
@@ -38,7 +38,7 @@ int determine_size_class(int size)
     return (cls > 2048) ? -1 : cls;
 }
 
-int get_slab_cache_index(int size_class) {
+int get_slab_cache_index(size_t size_class) {
     switch(size_class) {
         case 16:
             return 0;
@@ -61,7 +61,7 @@ int get_slab_cache_index(int size_class) {
     }
 }
 
-size_t round_to_nearest_page(int num) {
+size_t round_to_nearest_page(size_t num) {
     long page_size = sysconf(_SC_PAGESIZE);
 
     return (num + page_size - 1) & ~(page_size - 1);
