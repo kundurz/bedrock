@@ -55,6 +55,16 @@ char* _metadata_alloc(int bytes) {
 */
 int _heap_init()
 {
+
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1)
+        return -1;
+    
+    // MAX page size supported is 16KiB
+    // divide by 16 because thats the smallest size class.
+    if ((size_t)page_size / 16 > MAX_SLAB_SLOTS)
+        _exit(127);
+
     // Allocate the metadata region of the heap.
     metadata_start = (char*)mmap(
         NULL, 
@@ -78,10 +88,15 @@ int _heap_init()
     // Allocate fast chunk bins on the heap.
     fast_caches = (struct slab**)_metadata_alloc(8 * sizeof(struct slab*));
 
-    initialize_hash_map(SMALL);
-    initialize_hash_map(LARGE);
+    if (initialize_hash_map(SMALL) == -1) 
+        _exit(127);
 
-    initialize_ring_cache();
+    if (initialize_hash_map(LARGE) == -1)
+        _exit(127);
+
+    if (initialize_ring_cache() == -1)
+        _exit(127); 
+
     initialize_quarantine_queue();
 
     return 0;
@@ -101,14 +116,21 @@ int _heap_init()
 void _allocate_fast_page(int size_class, struct slab** cache) 
 {
     // Allocate a new page for whichever bin we are dealing with.
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1)
+        _exit(127);
+
     char* new_page = (char*)mmap(
         NULL, 
-        4096, 
+        page_size, 
         PROT_READ | PROT_WRITE, 
         MAP_PRIVATE | MAP_ANON, 
         -1, 
         0
     );
+
+    if (new_page == MAP_FAILED) 
+        _exit(127);
 
     // Fill in the header.
     void* next_slab = (*cache);
@@ -117,7 +139,14 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     struct slab metadata = { 0 };
     metadata.base = new_page;
     metadata.size_class = size_class;
-    metadata.slot_count = PAGE_SIZE_BYTES / size_class;
+
+    size_t slot_count = (size_t)page_size / (size_t)size_class;
+
+    if (slot_count > MAX_SLAB_SLOTS)
+        _exit(127);
+
+    metadata.slot_count = (uint16_t)slot_count; 
+
     metadata.free_count = metadata.slot_count;
     metadata.next = next_slab;
     metadata.prev = NULL;
@@ -133,7 +162,9 @@ void _allocate_fast_page(int size_class, struct slab** cache)
 
     // Insert the metadata in the hash map
     struct map_value map_value = construct_map_value(&metadata, NULL);
-    addr_map_insert(SMALL, (uintptr_t)new_page, map_value);
+
+    if (!addr_map_insert(SMALL, (uintptr_t)new_page, map_value)) 
+        _exit(127);
 
     *cache = (struct slab*)new_page;
 }
@@ -207,8 +238,10 @@ void* _slab_alloc(struct slab** cache) {
 void* heap_alloc(size_t bytes) 
 {
     if (!heap_initialized) {
+        if (_heap_init() == -1)
+            _exit(127);
+
         heap_initialized = 1;
-        _heap_init();
     }
 
     // Determining the correct size class.
@@ -241,9 +274,17 @@ void _handle_invalid_free() {
 */
 void heap_free(void* ptr) 
 {
-    // Take out the ptr last 3 bits
-    uintptr_t page_base = (uintptr_t)ptr & ~0xFFF;
-    uintptr_t slot_start = (uintptr_t)ptr & 0xFFF;
+    if (ptr == NULL)
+        return;
+
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1)
+        _exit(127); 
+
+    uintptr_t page_mask = ((uintptr_t)sysconf(_SC_PAGESIZE) - 1);
+
+    uintptr_t page_base = (uintptr_t)ptr & ~page_mask;
+    uintptr_t slot_start = (uintptr_t)ptr & page_mask;
 
     bool is_large = false;
 
@@ -278,8 +319,8 @@ void heap_free(void* ptr)
         if (dq_entry == NULL) 
             return;
 
-        uintptr_t dq_page_base = (uintptr_t)dq_entry & ~0xFFF;
-        uintptr_t dq_slot_start = (uintptr_t)dq_entry & 0xFFF;
+        uintptr_t dq_page_base = (uintptr_t)dq_entry & ~page_mask;
+        uintptr_t dq_slot_start = (uintptr_t)dq_entry & page_mask;
 
         struct map_entry* dq_map_entry = addr_map_lookup(SMALL, dq_page_base);
         size_t dq_size = dq_map_entry->value.slab.size_class;

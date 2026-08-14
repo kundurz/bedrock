@@ -6,6 +6,10 @@
 #include "ring_cache.h"
 
 void* hardened_large_alloc(size_t payload_size) {
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1)
+        _exit(127);
+
     struct guarded_region region;
 
     // First we're gonna look for a ring cache
@@ -13,7 +17,7 @@ void* hardened_large_alloc(size_t payload_size) {
     if (region.usable_ptr == NULL) 
         region = create_gaurded_region(payload_size, true); 
     else
-        unlock_page(region.usable_ptr, region.total_size - 2 * sysconf(_SC_PAGESIZE));
+        unlock_page(region.usable_ptr, region.total_size - 2 * page_size);
 
     struct large_meta large_metadata;
 
@@ -23,12 +27,17 @@ void* hardened_large_alloc(size_t payload_size) {
     large_metadata.offset = region.offset;
 
     struct map_value map_value = construct_map_value(NULL, &large_metadata);
-    addr_map_insert(LARGE, (char*)region.usable_ptr + region.offset, map_value);
+    if (!addr_map_insert(LARGE, (char*)region.usable_ptr + region.offset, map_value)) {
+        return NULL;
+    }
 
     return (void*)((char*)region.usable_ptr + region.offset);
 }
 
 void hardened_large_free(void* ptr) {
+    long page_size = sysconf(_SC_PAGESIZE); 
+    if (page_size == -1)
+        return;
 
     struct map_entry* map_entry = addr_map_lookup(LARGE, (uintptr_t)ptr);
 
@@ -38,11 +47,12 @@ void hardened_large_free(void* ptr) {
     struct guarded_region region;
     region.mmap_base = map_entry->value.large.mmap_base;
     region.total_size = map_entry->value.large.total_size;
-    region.usable_ptr = (char*)region.mmap_base + sysconf(_SC_PAGE_SIZE); 
+    region.usable_ptr = (char*)region.mmap_base + page_size; 
     region.offset = map_entry->value.large.offset;
 
-    delete_entry(LARGE, (uintptr_t)ptr);
+    if (delete_entry(LARGE, (uintptr_t)ptr) == -1)
+        return;
 
-    lock_page((char*)ptr - region.offset, region.total_size - 2 * sysconf(_SC_PAGESIZE));
+    lock_page((char*)ptr - region.offset, region.total_size - 2 * page_size);
     insert_cache_entry(region); // This will handle it being destroyed later. 
 }

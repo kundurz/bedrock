@@ -25,11 +25,16 @@ static int _search_for_non_occupied_entry() {
     return -1;
 }
 
-void initialize_ring_cache() {
+int initialize_ring_cache() {
     struct guarded_region region = create_gaurded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry), false);
+
+    if (region.mmap_base == MAP_FAILED)
+        return -1;
 
     cache_base = region.usable_ptr;
     next_entry_index = 0;
+
+    return 0;
 }
 
 void insert_cache_entry(struct guarded_region region) {
