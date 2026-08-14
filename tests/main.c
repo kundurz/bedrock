@@ -7,7 +7,7 @@
 int main() {
     size_t name_length;
     printf("Please enter the size of your name: ");
-    scanf("%d", &name_length);
+    scanf("%zu", &name_length);
 
     char* my_str = heap_alloc(name_length + 1);
 
