@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 #include "addr_map.h"
 #include "utils.h"
 #include "secure_utils.h"
@@ -45,6 +46,11 @@ static uint64_t hash_address(uintptr_t addr, uint64_t salt)
 }
 
 int initialize_hash_map(enum map_type self) {
+    long page_size = sysconf(_SC_PAGESIZE);
+
+    if (page_size == -1)
+        _exit(127); 
+
     struct hash_map_state* map_state;
 
     if (self == LARGE) {
@@ -58,13 +64,13 @@ int initialize_hash_map(enum map_type self) {
     if (generate_salt(&(map_state->random_salt)) != 0)
         return -1;
 
-    map_state->guard_region = create_gaurded_region(4096, false);
+    map_state->guard_region = create_gaurded_region(page_size, false);
     map_state->base = map_state->guard_region.usable_ptr;
 
     if (map_state->base == MAP_FAILED)
         return -1;
 
-    map_state->size = 4096;
+    map_state->size = page_size;
     map_state->capacity = round_down_power_of_two(map_state->size / sizeof(struct map_entry));
     map_state->occupied_slots = 0;
 
@@ -86,13 +92,12 @@ int map_select(enum map_type self, struct hash_map_state** map_state) {
 struct map_value construct_map_value(struct slab* slab_metadata, struct large_meta* large_metadata) {
     struct map_value value; 
     if (slab_metadata != NULL) {
-        value.type = SMALL;
+        value.type = ALLOC_TYPE_SLAB;
         value.slab = *slab_metadata;
     } else if (large_metadata != NULL) {
-        value.type = LARGE;
+        value.type = ALLOC_TYPE_LARGE;
         value.large = *large_metadata;
-    }
-
+    } 
     return value;
 }
 
@@ -125,7 +130,7 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
     
     uintptr_t targetKey = addr_key;
     struct map_value targetValue = metadata_value; 
-    uint8_t targetDib = 0;
+    uint16_t targetDib = 0;
     struct map_entry* inserted_entry = NULL;
 
     // use modulo to bound everything later.
@@ -137,7 +142,7 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
                 if (inserted_entry == NULL) inserted_entry = curr;
 
                 generic_swap(&targetKey, &curr->key, sizeof(uintptr_t));
-                generic_swap(&targetValue, &curr->value, sizeof(struct slab));
+                generic_swap(&targetValue, &curr->value, sizeof(struct map_value));
                 generic_swap(&targetDib, &curr->dib, sizeof(uint8_t));
             }
         } else {
@@ -171,8 +176,11 @@ static void resize_map(enum map_type self) {
     uint64_t old_capacity = map_state->capacity;
     size_t old_size = map_state->size;
 
-    map_state->size *= 2; 
-    map_state->capacity *= 2; 
+    if (!add_size_t_safely(map_state->size, map_state->size, &(map_state->size)))
+        _exit(127);
+
+    if (!add_size_t_safely(map_state->capacity, map_state->capacity, &(map_state->capacity)))
+        _exit(127);
 
     map_state->guard_region = create_gaurded_region(map_state->size, false);
     map_state->base = map_state->guard_region.usable_ptr;
@@ -205,7 +213,7 @@ int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value met
 
     struct map_entry* relevant_entry = robin_hood_resolution(self, addr_key, metadata_value);
     
-    map_state->occupied_slots += 1;
+    if (relevant_entry != NULL) map_state->occupied_slots += 1;
 
     return relevant_entry != NULL;
 }
@@ -284,15 +292,19 @@ static struct map_entry* _increment_map_address(enum map_type self, struct map_e
     return next;
 } 
 
-static void _backshift_delete(enum map_type self, uintptr_t addr_key) {
+static int _backshift_delete(enum map_type self, uintptr_t addr_key) {
     struct hash_map_state* map_state;
 
     int success = map_select(self, &map_state); 
 
     if (success == -1)
-        return;
+        return -1;
 
     struct map_entry* entry = addr_map_lookup(self, addr_key);
+
+    if (entry == NULL)
+        return -1;
+
     entry->is_occupied = false;
     map_state->occupied_slots -= 1; 
 
@@ -316,8 +328,10 @@ static void _backshift_delete(enum map_type self, uintptr_t addr_key) {
         curr = _increment_map_address(self, curr);
         next = _increment_map_address(self, next); 
     }
+
+    return 0;
 }
 
-void delete_entry(enum map_type self, uintptr_t addr_key) {
-    _backshift_delete(self, addr_key);
+int delete_entry(enum map_type self, uintptr_t addr_key) {
+    return _backshift_delete(self, addr_key);
 }

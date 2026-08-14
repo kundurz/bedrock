@@ -58,7 +58,7 @@ int initialize_hash_map();
 int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value metadata_value); 
 struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key); 
 struct map_value construct_map_value(struct slab* slab_metadata, struct large_meta* large_metadata); 
-void delete_entry(enum map_type self, uintptr_t addr_key); 
+int delete_entry(enum map_type self, uintptr_t addr_key); 
 
 /* INTERFACES FOR TESTING */
 void print_map_state(enum map_type self); 
