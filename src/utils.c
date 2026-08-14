@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "utils.h"
+#include "secure_utils.h"
 
 /*
     Determines the fast chunk size class 
@@ -64,8 +65,11 @@ int get_slab_cache_index(size_t size_class) {
 size_t round_to_nearest_page(size_t num) {
     long page_size = sysconf(_SC_PAGESIZE);
 
-    return (num + page_size - 1) & ~(page_size - 1);
-    //return (num + 4095) & ~(size_t)4095;
+    size_t sum;
+    if (!add_size_t_safely(num, page_size - 1, &sum))
+        _exit(127);
+
+    return (sum) & ~(page_size - 1);
 }
 
 size_t round_down_power_of_two(size_t value) {

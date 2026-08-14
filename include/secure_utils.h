@@ -19,5 +19,4 @@ void lock_page(void* base, size_t region_size);
 void unlock_page(void* base, size_t region_size); 
 
 void fisher_yates_shuffle(uint16_t *indicies, size_t length); 
-
-int _generate_random_number(int upper_bound); 
+bool add_size_t_safely(size_t num1, size_t num2, size_t* result); 

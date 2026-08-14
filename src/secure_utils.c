@@ -12,6 +12,29 @@
 #include "secure_utils.h"
 #include "utils.h"
 
+static size_t _generate_random_number(size_t upper_bound) {
+    unsigned int raw_bytes;
+
+    ssize_t result = getrandom(&raw_bytes, sizeof(raw_bytes), 0); 
+
+    if (result < 0) {
+        return -1;
+    }
+
+    unsigned int final_number = raw_bytes % (upper_bound + 1);
+
+    return final_number;
+}
+
+bool add_size_t_safely(size_t num1, size_t num2, size_t* result) {
+    *result = num1 + num2;
+
+    if (*result < num1) 
+        return false; 
+
+    return true;
+}
+
 struct guarded_region create_gaurded_region(size_t length, bool add_offset) {
     long page_size = sysconf(_SC_PAGESIZE);
 
@@ -23,14 +46,23 @@ struct guarded_region create_gaurded_region(size_t length, bool add_offset) {
         offset = _generate_random_number(rounded_payload_size);
 
         size_t alignment = _Alignof(max_align_t);
-        offset = (offset + alignment - 1) & ~(alignment - 1);
+        size_t sum = 0;
+        if (!add_size_t_safely(offset, alignment - 1, &sum))   
+            _exit(127);
+
+        offset = (sum) & ~(alignment - 1);
     }
 
-    rounded_payload_size = round_to_nearest_page(rounded_payload_size + offset);
+    size_t new_payload_size = 0;
+    if (!add_size_t_safely(rounded_payload_size, offset, &new_payload_size))
+        _exit(127); 
 
+    rounded_payload_size = round_to_nearest_page(new_payload_size);
+    
     // The total region is the requested length + 2 guard pages
-    size_t total_size = rounded_payload_size + (2 * page_size);
-
+    size_t total_size = 0; 
+    if (!add_size_t_safely(rounded_payload_size, 2 * page_size, &total_size)) 
+        _exit(127);
 
     void *base = mmap(
         NULL, 
@@ -43,18 +75,18 @@ struct guarded_region create_gaurded_region(size_t length, bool add_offset) {
 
     if (base == MAP_FAILED) {
         perror("mmap failed");
-        exit(EXIT_FAILURE);
+        _exit(127);
     }
     
     if (mprotect(base, page_size, PROT_NONE) != 0) {
         perror("mprotect front guard failed");
-        exit(EXIT_FAILURE);
+        _exit(127);
     }
 
     void* tail_guard = (char*)base + page_size + rounded_payload_size;
     if (mprotect(tail_guard, page_size, PROT_NONE) != 0) {
         perror("mprotect tail guard failed");
-        exit(EXIT_FAILURE);
+        _exit(127);
     }
 
     struct guarded_region region;
@@ -91,19 +123,6 @@ void unlock_page(void* base, size_t region_size) {
     }
 }
 
-int _generate_random_number(size_t upper_bound) {
-    unsigned int raw_bytes;
-
-    ssize_t result = getrandom(&raw_bytes, sizeof(raw_bytes), 0); 
-
-    if (result < 0) {
-        return -1;
-    }
-
-    unsigned int final_number = raw_bytes % (upper_bound + 1);
-
-    return final_number;
-}
 
 void fisher_yates_shuffle(uint16_t *indicies, size_t length) {
 
