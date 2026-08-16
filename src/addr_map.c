@@ -64,7 +64,8 @@ int initialize_hash_map(enum map_type self) {
     if (generate_salt(&(map_state->random_salt)) != 0)
         return -1;
 
-    map_state->guard_region = create_gaurded_region(page_size, false);
+    if (self == SMALL) map_state->guard_region = create_gaurded_region(page_size, false);
+    else map_state->guard_region = create_gaurded_region(round_to_nearest_page(sizeof(struct large_meta) * 10), false);
     map_state->base = map_state->guard_region.usable_ptr;
 
     if (map_state->base == MAP_FAILED)
@@ -174,7 +175,6 @@ static void resize_map(enum map_type self) {
     struct guarded_region guarded_region = map_state->guard_region;
     struct map_entry* old_base = map_state->base;
     uint64_t old_capacity = map_state->capacity;
-    size_t old_size = map_state->size;
 
     if (!add_size_t_safely(map_state->size, map_state->size, &(map_state->size)))
         _exit(127);
@@ -185,7 +185,7 @@ static void resize_map(enum map_type self) {
     map_state->guard_region = create_gaurded_region(map_state->size, false);
     map_state->base = map_state->guard_region.usable_ptr;
 
-    for (int i = 0; i < old_capacity; i++) {
+    for (long unsigned int i = 0; i < old_capacity; i++) {
         struct map_entry* curr = old_base + i;
         if (curr->is_occupied)
             robin_hood_resolution(self, curr->key, curr->value);
@@ -209,8 +209,6 @@ int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value met
         resize_map(self);
     }
 
-    int map_entry_index = hash_address(addr_key, map_state->random_salt) % map_state->capacity;
-
     struct map_entry* relevant_entry = robin_hood_resolution(self, addr_key, metadata_value);
     
     if (relevant_entry != NULL) map_state->occupied_slots += 1;
@@ -233,7 +231,8 @@ struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
     int index = hash_address(addr_key, map_state->random_salt) % map_state->capacity;
 
     bool entry_is_occupied = true;
-    while (entry_is_occupied) {
+    uint64_t num_probes = 0;
+    while (entry_is_occupied && num_probes < map_state->capacity) {
         struct map_entry* curr = (struct map_entry*)map_state->base + (index); 
         if (curr->is_occupied) {
             if (curr->key == addr_key)
@@ -241,7 +240,10 @@ struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
         } else {
             break;
         }
+
         index = (index + 1) % map_state->capacity;
+        num_probes++;
+
     }
 
     return NULL; // entry not found.
@@ -255,7 +257,7 @@ void addr_map_enumerate(enum map_type self) {
     if (success == -1)
         return;
 
-    for (int i = 0; i < map_state->capacity; i++) {
+    for (long unsigned int i = 0; i < map_state->capacity; i++) {
         struct map_entry* curr = map_state->base + i;
         printf("| key = %lx |\n", curr->key);
     }
@@ -313,10 +315,10 @@ static int _backshift_delete(enum map_type self, uintptr_t addr_key) {
     
     while (next->is_occupied && next->dib > 0) {
         // wrap around
-        if (next > ((char*)map_state->base + map_state->size)) {
+        if ((uintptr_t)next > (uintptr_t)((char*)map_state->base + map_state->size)) {
             next = map_state->base;
         }
-        if (curr > ((char*)map_state->base + map_state->size)) {
+        if ((uintptr_t)curr > (uintptr_t)((char*)map_state->base + map_state->size)) {
             curr = map_state->base; 
         }
 
