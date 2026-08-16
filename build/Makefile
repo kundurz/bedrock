@@ -17,6 +17,74 @@ all: main
 main: $(OBJECTS)
 	$(CC) $(OBJECTS) -o main
 
+sanity_test: obj/sanity_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/sanity_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o sanity_test
+
+obj/sanity_test.o: ../tests/sanity_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/sanity_test.c -o obj/sanity_test.o
+
+correct_alignment_test: obj/correct_alignment_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/correct_alignment_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o correct_alignment_test
+
+obj/correct_alignment_test.o: ../tests/correct_alignment_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/correct_alignment_test.c \
+		-o obj/correct_alignment_test.o
+
+read_write_test: obj/read_write_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/read_write_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o read_write_test
+
+obj/read_write_test.o: ../tests/read_write_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/read_write_test.c -o obj/read_write_test.o
+
+overlap_test: obj/overlap_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/overlap_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o overlap_test
+
+obj/overlap_test.o: ../tests/overlap_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/overlap_test.c -o obj/overlap_test.o
+
+free_tests: obj/free_tests.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/free_tests.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o free_tests
+
+obj/free_tests.o: ../tests/free_tests.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/free_tests.c -o obj/free_tests.o
+
+page_protection_test: obj/page_protection_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/page_protection_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o page_protection_test
+
+obj/page_protection_test.o: ../tests/page_protection_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/page_protection_test.c \
+		-o obj/page_protection_test.o
+
 obj/main.o: ../tests/main.c ../include/heap_internal.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/main.c -o obj/main.o
@@ -59,4 +127,5 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 	$(CC) $(CFLAGS) -c ../src/utils.c -o obj/utils.o
 
 clean:
-	rm -rf obj main
+	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
+		free_tests page_protection_test
