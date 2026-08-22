@@ -85,6 +85,28 @@ obj/page_protection_test.o: ../tests/page_protection_test.c ../include/heap.h
 	$(CC) $(CFLAGS) -c ../tests/page_protection_test.c \
 		-o obj/page_protection_test.o
 
+reuse_test: obj/reuse_test.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/reuse_test.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o reuse_test
+
+obj/reuse_test.o: ../tests/reuse_test.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/reuse_test.c -o obj/reuse_test.o
+
+mixed_workload: obj/mixed_workload.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/mixed_workload.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o mixed_workload
+
+obj/mixed_workload.o: ../tests/mixed_workload.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../tests/mixed_workload.c -o obj/mixed_workload.o
+
 obj/main.o: ../tests/main.c ../include/heap_internal.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/main.c -o obj/main.o
@@ -128,4 +150,4 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 
 clean:
 	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
-		free_tests page_protection_test
+		free_tests page_protection_test reuse_test mixed_workload
