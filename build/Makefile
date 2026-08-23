@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -Wextra -I.. -I../include
+CFLAGS = -O3 -g -Wall -Wextra -I.. -I../include
 
 OBJECTS = obj/main.o \
 	obj/heap.o \
@@ -107,6 +107,25 @@ obj/mixed_workload.o: ../tests/mixed_workload.c ../include/heap.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/mixed_workload.c -o obj/mixed_workload.o
 
+throughput: obj/throughput.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/throughput.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o throughput
+
+obj/throughput.o: ../benchmarking/throughput/throughput.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../benchmarking/throughput/throughput.c -o obj/throughput.o
+
+malloc_throughput: obj/malloc_throughput.o
+	$(CC) obj/malloc_throughput.o -o malloc_throughput
+
+obj/malloc_throughput.o: ../benchmarking/throughput/malloc_throughput.c
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../benchmarking/throughput/malloc_throughput.c \
+		-o obj/malloc_throughput.o
+
 obj/main.o: ../tests/main.c ../include/heap_internal.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/main.c -o obj/main.o
@@ -150,4 +169,5 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 
 clean:
 	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
-		free_tests page_protection_test reuse_test mixed_workload
+		free_tests page_protection_test reuse_test mixed_workload throughput \
+		malloc_throughput
