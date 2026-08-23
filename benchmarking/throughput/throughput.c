@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <time.h>
 
 #include "heap.h"
@@ -15,15 +16,17 @@ struct allocation_record {
     size_t size;
 };
 
-int main() {
+double steady_state_throughput(bool large) {
 
-    struct allocation_record window[WINDOW_SIZE];
+struct allocation_record window[WINDOW_SIZE];
     size_t head = 0;
 
     // Phase 1: RAMP UP
     // Fill the window to establish the "live set" steady-state memory volume.
     for (size_t i = 0; i < WINDOW_SIZE ; i++) {
-        size_t size = rand() % 2049;
+        size_t size = 0;
+        if (large) size = 2049 + (rand() % (64 * 1024 - 2049 +1));
+        else size = rand() % 2049;
 
         window[i].ptr = heap_alloc(size);
         window[i].size = size;
@@ -60,5 +63,21 @@ int main() {
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     double ops_per_sec = (TOTAL_ITERATIONS * 2) / elapsed;
 
-    printf("Steady-State Churn Throughput: %.2f ops/sec\n", ops_per_sec);
+    return ops_per_sec;
+
+}
+
+int main(int argc, char** argv) {
+    if (argc < 1) 
+        return -1;
+    
+    if (argv[1][0] == 's') {
+        printf("%.2f", steady_state_throughput(false));
+    } else if (argv[1][0] == 'l') {
+        printf("%.2f", steady_state_throughput(true));
+    } else {
+        return -1;
+    }
+
+    return 0;
 }
