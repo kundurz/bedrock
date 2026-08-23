@@ -126,6 +126,25 @@ obj/malloc_throughput.o: ../benchmarking/throughput/malloc_throughput.c
 	$(CC) $(CFLAGS) -c ../benchmarking/throughput/malloc_throughput.c \
 		-o obj/malloc_throughput.o
 
+latency: obj/latency.o obj/heap.o obj/addr_map.o \
+	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+	obj/slab_quarantine.o obj/utils.o
+	$(CC) obj/latency.o obj/heap.o obj/addr_map.o \
+		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
+		obj/slab_quarantine.o obj/utils.o -o latency
+
+obj/latency.o: ../benchmarking/latency/latency.c ../include/heap.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../benchmarking/latency/latency.c -o obj/latency.o
+
+malloc_latency: obj/malloc_latency.o
+	$(CC) obj/malloc_latency.o -o malloc_latency
+
+obj/malloc_latency.o: ../benchmarking/latency/malloc_latency.c
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../benchmarking/latency/malloc_latency.c \
+		-o obj/malloc_latency.o
+
 obj/main.o: ../tests/main.c ../include/heap_internal.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/main.c -o obj/main.o
@@ -170,4 +189,4 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 clean:
 	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
 		free_tests page_protection_test reuse_test mixed_workload throughput \
-		malloc_throughput
+		malloc_throughput latency malloc_latency
