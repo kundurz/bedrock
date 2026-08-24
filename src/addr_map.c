@@ -137,7 +137,7 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
     // use modulo to bound everything later.
     // I USE TRUE HERE SO THAT IT WRAPS AROUND, DO NOT GUARD IT1
     for (int i = home_entry_index; true ; i++) {
-        struct map_entry* curr = (struct map_entry*)map_state->base + (i % map_state->capacity); 
+        struct map_entry* curr = (struct map_entry*)map_state->base + (i & (map_state->capacity - 1)); 
         if (curr->is_occupied) {
             if (targetDib > curr->dib) {
                 if (inserted_entry == NULL) inserted_entry = curr;
@@ -241,7 +241,7 @@ struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
             break;
         }
 
-        index = (index + 1) % map_state->capacity;
+        index = (index + 1 ) & (map_state->capacity - 1);
         num_probes++;
 
     }

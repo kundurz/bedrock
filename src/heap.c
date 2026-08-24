@@ -24,21 +24,6 @@ char* metadata_end;
 
 int heap_initialized = 0;
 
-void print_slab(struct slab* slab) {
-    struct slab* curr = slab;
-
-    while (curr != NULL) {
-        printf("| SIZE = %ld, FREE_SLOTS = %ld| -> ", curr->size_class, curr->free_count);
-        curr = curr->next;
-    }
-    printf("\n");
-}
-
-void print_all_slabs() {
-    for (int i = 0; i < 8; i++)
-        print_slab(fast_caches[i]);
-}
-
 /* 
     _metadata_alloc() allocates memory space
     for heap metadata and related data structures.
@@ -212,8 +197,7 @@ void _push_slab(struct slab* slab) {
 
     I'm wondering if this even accounts for the case where 
 */
-void* _slab_alloc(struct slab** cache) {
-    struct map_entry* map_entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
+void* _slab_alloc(struct slab** cache, struct map_entry* map_entry) {
     struct slab* free_slab = &(map_entry->value.slab);
 
     int bit_number = free_slab->indicies[free_slab->free_top];
@@ -254,9 +238,10 @@ void* heap_alloc(size_t bytes)
 
         if ((entry == NULL) || (entry->value.slab.free_count == 0)) {
             _allocate_fast_page(size_class, cache); 
+            entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
         }
         
-        void* pointer = _slab_alloc(cache); 
+        void* pointer = _slab_alloc(cache, entry); 
 
         return pointer; 
 

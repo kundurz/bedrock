@@ -10,12 +10,33 @@ OBJECTS = obj/main.o \
 	obj/slab_quarantine.o \
 	obj/utils.o
 
-.PHONY: all clean
+.PHONY: all test clean
 
 all: main
 
+test:
+	$(MAKE) -B sanity_test correct_alignment_test read_write_test overlap_test \
+		free_tests page_protection_test reuse_test mixed_workload
+	test_status=0; \
+	./sanity_test || test_status=1; \
+	./correct_alignment_test || test_status=1; \
+	./read_write_test || test_status=1; \
+	./overlap_test || test_status=1; \
+	./free_tests || test_status=1; \
+	./page_protection_test || test_status=1; \
+	./reuse_test || test_status=1; \
+	./mixed_workload || test_status=1; \
+	exit $$test_status
+
 main: $(OBJECTS)
 	$(CC) $(OBJECTS) -o main
+
+testing: obj/testing.o
+	$(CC) obj/testing.o -o testing
+
+obj/testing.o: ../examples/testing.c ../include/addr_map.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../examples/testing.c -o obj/testing.o
 
 sanity_test: obj/sanity_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
@@ -189,4 +210,4 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 clean:
 	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
 		free_tests page_protection_test reuse_test mixed_workload throughput \
-		malloc_throughput latency malloc_latency
+		malloc_throughput latency malloc_latency testing

@@ -36,21 +36,20 @@ struct map_value {
 
 struct map_entry {
     uint64_t key;
-    struct map_value value;
-
     uint8_t dib; 
     bool is_occupied;
+
+    struct map_value value;
 };
 
 struct hash_map_state {
-    struct guarded_region guard_region;
     struct map_entry* base;
-
     size_t size; // size in bytes
     uint64_t capacity;
     uint64_t occupied_slots;
-
     uint64_t random_salt;
+
+    struct guarded_region guard_region;
 };
 
 /* CORE INTERFACES */
