@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MAX_SLAB_SLOTS 1024
 
@@ -13,20 +14,37 @@ struct span
 };
 
 /* Structs for slabs and large chunks */
+// Grouped based on temporal locality. 
 struct slab {
-    void *base;
+    // Slab allocation state
+    void *base; // HOT
+    uint16_t size_class;
+    uint16_t slot_count; // How many available slots there are
+    uint16_t free_count; // How many of these slots are free?
+    uint16_t free_top;
+
+    // Slab list statte
+    struct slab *next;
+    struct slab *prev;
+
+    // Slab slot state. 
+    uint16_t indicies[MAX_SLAB_SLOTS];
+    uint64_t alloc_bitmap[MAX_SLAB_SLOTS / 64];
+};
+
+struct slab_for_size {
+    void *base; // I'm curious if this is ever used.
     uint16_t size_class;
     uint16_t slot_count; // How many available slots there are
     uint16_t free_count; // How many of these slots are free?
 //    uint64_t alloc_bitmap[4];
-    uint8_t alloc_bytemap[MAX_SLAB_SLOTS];
+    uint64_t alloc_bitmap[16]; // This itself is larger than the cache line.
+
     struct slab *next;
     struct slab *prev;
-
-    /* Fisher-Yates Array */
-    uint16_t free_top;
-    uint16_t indicies[MAX_SLAB_SLOTS];
 };
+
+// Okay so every 
 
 /* Internal heap functions */
 int _heap_init();

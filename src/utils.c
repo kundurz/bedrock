@@ -90,3 +90,38 @@ void generic_swap(void *a, void *b, size_t size) {
     memcpy(a, b, size);
     memcpy(b, temp, size);
 }
+
+
+void set_free(uint64_t* bitmap, int bit_number) {
+
+    int region_number = bit_number / 64;
+    int bit_index = bit_number % 64;
+
+    uint64_t bitmask = UINT64_C(1) << bit_index;
+    
+    bitmap[region_number] &= ~bitmask;
+
+}
+
+void set_allocated(uint64_t* bitmap, int bit_number) {
+
+    int region_number = bit_number / 64;
+    int bit_index = bit_number % 64;
+
+    uint64_t bitmask = UINT64_C(1) << bit_index;
+    
+    bitmap[region_number] |= bitmask;
+
+}
+
+bool check_free(uint64_t* bitmap, int bit_number) {
+    // This is the index of the bitmap that this belongs in.
+    int region_number = bit_number / 64;
+    int bit_index = bit_number % 64; // The speciifc index within the region.
+
+    uint64_t bitmask = UINT64_C(1) << bit_index;
+    uint64_t bitmap_region = bitmap[region_number];
+
+    return (bitmap_region & bitmask) == 0;
+
+}

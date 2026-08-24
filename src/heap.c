@@ -216,10 +216,10 @@ void* _slab_alloc(struct slab** cache) {
     struct map_entry* map_entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
     struct slab* free_slab = &(map_entry->value.slab);
 
-    int alloc_bytemap_index = free_slab->indicies[free_slab->free_top];
+    int bit_number = free_slab->indicies[free_slab->free_top];
     if (free_slab->free_top < free_slab->slot_count) free_slab->free_top = free_slab->free_top + 1;
 
-    free_slab->alloc_bytemap[alloc_bytemap_index] = 0xff;
+    set_allocated(free_slab->alloc_bitmap, bit_number);
     free_slab->free_count--;
 
 
@@ -227,7 +227,7 @@ void* _slab_alloc(struct slab** cache) {
         _unlink_slab(cache, free_slab); 
     }
 
-    void* slot_address = (char*)free_slab->base + (free_slab->size_class * alloc_bytemap_index);
+    void* slot_address = (char*)free_slab->base + (free_slab->size_class * bit_number);
 
     return slot_address;
 }
@@ -305,15 +305,16 @@ void heap_free(void* ptr)
             _handle_invalid_free();
 
         int bytemap_index = slot_start / size;
+        int bit_number = slot_start / size;
 
-        if (entry->value.slab.alloc_bytemap[bytemap_index] == 0x00  || entry->value.slab.alloc_bytemap[bytemap_index] == 0xee)
+        if (check_free(entry->value.slab.alloc_bitmap, bit_number))
             _handle_invalid_free();
 
-        entry->value.slab.alloc_bytemap[bytemap_index] = 0xee; // 0xee means quarantined
 
         void* dq_entry = quarantine_dequeue(); 
 
         explicit_bzero(ptr, size);
+        set_free(entry->value.slab.alloc_bitmap, bit_number);
         quarantine_enqueue(ptr);
 
         if (dq_entry == NULL) 
@@ -324,15 +325,15 @@ void heap_free(void* ptr)
 
         struct map_entry* dq_map_entry = addr_map_lookup(SMALL, dq_page_base);
         size_t dq_size = dq_map_entry->value.slab.size_class;
-        int dq_bytemap_index = dq_slot_start / dq_size; 
+        int dq_bit_number = dq_slot_start / dq_size;
 
-        dq_map_entry->value.slab.alloc_bytemap[dq_bytemap_index] = 0x00;
+
         dq_map_entry->value.slab.free_count += 1;
 
         dq_map_entry->value.slab.free_top--;
         int free_slot = dq_map_entry->value.slab.free_top;
 
-        dq_map_entry->value.slab.indicies[free_slot] = dq_bytemap_index;
+        dq_map_entry->value.slab.indicies[free_slot] = dq_bit_number; 
         
         // This is gonna be for the slab that was freed.
         if (dq_map_entry->value.slab.free_count == 1) {
