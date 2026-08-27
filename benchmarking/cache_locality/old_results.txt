@@ -1,0 +1,30 @@
+make: 'throughput' is up to date.
+make: 'malloc_throughput' is up to date.
+hardened_cycles_per_operation: 467.32
+hardened_instructions_per_operation: 427.18
+hardened_instructions_per_cycle: 0.91
+hardened_cache_references_per_operation: 21.31
+hardened_cache_misses_per_operation: 14.23
+hardened_cache_miss_rate: 66.77 %
+hardened_l1_loads_per_operation: 71.33
+hardened_l1_misses_per_operation: 3.83
+hardened_l1_miss_rate: 5.37 %
+hardened_dtlb_misses_per_operation: 0.50
+hardened_dtlb_miss_rate: 0.71 %
+hardened_branches_per_operation: 98.00
+hardened_branch_misses_per_operation: 1.80
+hardened_branch_miss_rate: 1.84 %
+glibc_cycles_per_operation: 148.38
+glibc_instructions_per_operation: 219.28
+glibc_instructions_per_cycle: 1.48
+glibc_cache_references_per_operation: 3.74
+glibc_cache_misses_per_operation: 0.92
+glibc_cache_miss_rate: 24.56 %
+glibc_l1_loads_per_operation: 56.08
+glibc_l1_misses_per_operation: 2.10
+glibc_l1_miss_rate: 3.74 %
+glibc_dtlb_misses_per_operation: 0.27
+glibc_dtlb_miss_rate: 0.48 %
+glibc_branches_per_operation: 46.80
+glibc_branch_misses_per_operation: 1.79
+glibc_branch_miss_rate: 3.82 %
