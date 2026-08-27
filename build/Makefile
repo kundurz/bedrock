@@ -8,6 +8,7 @@ OBJECTS = obj/main.o \
 	obj/ring_cache.o \
 	obj/secure_utils.o \
 	obj/slab_quarantine.o \
+	obj/slab_metadata_allocator.o \
 	obj/utils.o
 
 .PHONY: all test clean
@@ -40,10 +41,11 @@ obj/testing.o: ../examples/testing.c ../include/addr_map.h
 
 sanity_test: obj/sanity_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/sanity_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o sanity_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o sanity_test
 
 obj/sanity_test.o: ../tests/sanity_test.c ../include/heap.h
 	mkdir -p obj
@@ -51,10 +53,11 @@ obj/sanity_test.o: ../tests/sanity_test.c ../include/heap.h
 
 correct_alignment_test: obj/correct_alignment_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/correct_alignment_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o correct_alignment_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o correct_alignment_test
 
 obj/correct_alignment_test.o: ../tests/correct_alignment_test.c ../include/heap.h
 	mkdir -p obj
@@ -63,10 +66,11 @@ obj/correct_alignment_test.o: ../tests/correct_alignment_test.c ../include/heap.
 
 read_write_test: obj/read_write_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/read_write_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o read_write_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o read_write_test
 
 obj/read_write_test.o: ../tests/read_write_test.c ../include/heap.h
 	mkdir -p obj
@@ -74,10 +78,11 @@ obj/read_write_test.o: ../tests/read_write_test.c ../include/heap.h
 
 overlap_test: obj/overlap_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/overlap_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o overlap_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o overlap_test
 
 obj/overlap_test.o: ../tests/overlap_test.c ../include/heap.h
 	mkdir -p obj
@@ -85,10 +90,11 @@ obj/overlap_test.o: ../tests/overlap_test.c ../include/heap.h
 
 free_tests: obj/free_tests.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/free_tests.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o free_tests
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o free_tests
 
 obj/free_tests.o: ../tests/free_tests.c ../include/heap.h
 	mkdir -p obj
@@ -96,10 +102,11 @@ obj/free_tests.o: ../tests/free_tests.c ../include/heap.h
 
 page_protection_test: obj/page_protection_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/page_protection_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o page_protection_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o page_protection_test
 
 obj/page_protection_test.o: ../tests/page_protection_test.c ../include/heap.h
 	mkdir -p obj
@@ -108,10 +115,11 @@ obj/page_protection_test.o: ../tests/page_protection_test.c ../include/heap.h
 
 reuse_test: obj/reuse_test.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/reuse_test.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o reuse_test
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o reuse_test
 
 obj/reuse_test.o: ../tests/reuse_test.c ../include/heap.h
 	mkdir -p obj
@@ -119,10 +127,11 @@ obj/reuse_test.o: ../tests/reuse_test.c ../include/heap.h
 
 mixed_workload: obj/mixed_workload.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/mixed_workload.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o mixed_workload
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o mixed_workload
 
 obj/mixed_workload.o: ../tests/mixed_workload.c ../include/heap.h
 	mkdir -p obj
@@ -130,10 +139,11 @@ obj/mixed_workload.o: ../tests/mixed_workload.c ../include/heap.h
 
 throughput: obj/throughput.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/throughput.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o throughput
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o throughput
 
 obj/throughput.o: ../benchmarking/throughput/throughput.c ../include/heap.h
 	mkdir -p obj
@@ -149,10 +159,11 @@ obj/malloc_throughput.o: ../benchmarking/throughput/malloc_throughput.c
 
 latency: obj/latency.o obj/heap.o obj/addr_map.o \
 	obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-	obj/slab_quarantine.o obj/utils.o
+	obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o
 	$(CC) obj/latency.o obj/heap.o obj/addr_map.o \
 		obj/large_allocations.o obj/ring_cache.o obj/secure_utils.o \
-		obj/slab_quarantine.o obj/utils.o -o latency
+		obj/slab_quarantine.o obj/slab_metadata_allocator.o obj/utils.o \
+		-o latency
 
 obj/latency.o: ../benchmarking/latency/latency.c ../include/heap.h
 	mkdir -p obj
@@ -173,7 +184,7 @@ obj/main.o: ../tests/main.c ../include/heap_internal.h
 obj/heap.o: ../src/heap.c ../include/heap_internal.h ../include/utils.h \
 	../include/addr_map.h ../include/ring_cache.h \
 	../include/large_allocations.h ../include/slab_quarantine.h \
-	../include/secure_utils.h
+	../include/secure_utils.h ../include/slab_metadata_allocator.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../src/heap.c -o obj/heap.o
 
@@ -202,6 +213,13 @@ obj/slab_quarantine.o: ../src/slab_quarantine.c \
 	../include/slab_quarantine.h ../include/secure_utils.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../src/slab_quarantine.c -o obj/slab_quarantine.o
+
+obj/slab_metadata_allocator.o: ../src/slab_metadata_allocator.c \
+	../include/slab_metadata_allocator.h ../include/heap_internal.h \
+	../include/secure_utils.h
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c ../src/slab_metadata_allocator.c \
+		-o obj/slab_metadata_allocator.o
 
 obj/utils.o: ../src/utils.c ../include/utils.h
 	mkdir -p obj

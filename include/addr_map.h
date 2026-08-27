@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "heap_internal.h"
 #include "secure_utils.h"
+#include "slab_metadata_allocator.h"
 
 enum map_type {
     LARGE = 0, 
@@ -29,7 +30,7 @@ struct large_meta {
 struct map_value {
     enum alloc_type type;
     union {
-        struct slab slab;
+        struct slab_metadata_slot *slab; // this shall be turned into a pointer.
         struct large_meta large;
     };
 };
@@ -56,7 +57,7 @@ struct hash_map_state {
 int initialize_hash_map(); 
 int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value metadata_value); 
 struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key); 
-struct map_value construct_map_value(struct slab* slab_metadata, struct large_meta* large_metadata); 
+struct map_value construct_map_value(struct slab_metadata_slot* slab_metadata, struct large_meta* large_metadata); 
 int delete_entry(enum map_type self, uintptr_t addr_key); 
 
 /* INTERFACES FOR TESTING */

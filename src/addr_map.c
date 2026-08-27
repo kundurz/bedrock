@@ -90,11 +90,11 @@ int map_select(enum map_type self, struct hash_map_state** map_state) {
     return 0; // Success
 }
 
-struct map_value construct_map_value(struct slab* slab_metadata, struct large_meta* large_metadata) {
+struct map_value construct_map_value(struct slab_metadata_slot* slab_metadata, struct large_meta* large_metadata) {
     struct map_value value; 
     if (slab_metadata != NULL) {
         value.type = ALLOC_TYPE_SLAB;
-        value.slab = *slab_metadata;
+        value.slab = slab_metadata;
     } else if (large_metadata != NULL) {
         value.type = ALLOC_TYPE_LARGE;
         value.large = *large_metadata;

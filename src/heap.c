@@ -15,6 +15,7 @@
 #include "large_allocations.h"
 #include "slab_quarantine.h"
 #include "secure_utils.h"
+#include "slab_metadata_allocator.h"
 
 struct slab** fast_caches;
 
@@ -105,6 +106,7 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     if (page_size == -1)
         _exit(127);
 
+    // Allocating a new page for the slab.
     char* new_page = (char*)mmap(
         NULL, 
         page_size, 
@@ -117,10 +119,10 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     if (new_page == MAP_FAILED) 
         _exit(127);
 
-    // Fill in the header.
+    // Putting it at the head of its cache's available slab list.
     void* next_slab = (*cache);
 
-    // Set the metadata
+    // Constructing the metadata.
     struct slab metadata = { 0 };
     metadata.base = new_page;
     metadata.size_class = size_class;
@@ -130,8 +132,8 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     if (slot_count > MAX_SLAB_SLOTS)
         _exit(127);
 
+    // Setting metadata features.
     metadata.slot_count = (uint16_t)slot_count; 
-
     metadata.free_count = metadata.slot_count;
     metadata.next = next_slab;
     metadata.prev = NULL;
@@ -140,14 +142,16 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     // Generate indicies using fisher-yates shuffle.
     fisher_yates_shuffle(metadata.indicies, metadata.slot_count);
 
+    struct slab_metadata_slot* ptr = insert_slab_metadata(&metadata);
+
+    // Full integration into the linked list.
     if (next_slab != NULL) {
         struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)next_slab);
-        if (next_slab_entry != NULL) next_slab_entry->value.slab.prev = (struct slab*)new_page;
+        if (next_slab_entry != NULL) next_slab_entry->value.slab->slab.prev = (struct slab*)new_page;
     }
 
     // Insert the metadata in the hash map
-    struct map_value map_value = construct_map_value(&metadata, NULL);
-
+    struct map_value map_value = construct_map_value(ptr, NULL);
     if (!addr_map_insert(SMALL, (uintptr_t)new_page, map_value)) 
         _exit(127);
 
@@ -163,8 +167,8 @@ void _unlink_slab(struct slab** cache, struct slab* slab) {
     struct map_entry* prev_slab_entry = addr_map_lookup(SMALL, (uintptr_t)slab->prev);
 
 
-    if (next_slab_entry != NULL) next_slab_entry->value.slab.prev = slab->prev;
-    if (prev_slab_entry != NULL) prev_slab_entry->value.slab.next = slab->next; 
+    if (next_slab_entry != NULL) next_slab_entry->value.slab->slab.prev = slab->prev;
+    if (prev_slab_entry != NULL) prev_slab_entry->value.slab->slab.next = slab->next; 
 
     slab->next = NULL;
     slab->prev = NULL;
@@ -182,7 +186,7 @@ void _push_slab(struct slab* slab) {
 
     if (next_slab != NULL) {
         struct map_entry* next_slab_entry = addr_map_lookup(SMALL, (uintptr_t)next_slab);
-        next_slab_entry->value.slab.prev = slab->base; 
+        next_slab_entry->value.slab->slab.prev = slab->base; 
     }
 
     slab->next = next_slab;
@@ -198,7 +202,7 @@ void _push_slab(struct slab* slab) {
     I'm wondering if this even accounts for the case where 
 */
 void* _slab_alloc(struct slab** cache, struct map_entry* map_entry) {
-    struct slab* free_slab = &(map_entry->value.slab);
+    struct slab* free_slab = &map_entry->value.slab->slab;
 
     int bit_number = free_slab->indicies[free_slab->free_top];
     if (free_slab->free_top < free_slab->slot_count) free_slab->free_top = free_slab->free_top + 1;
@@ -236,7 +240,7 @@ void* heap_alloc(size_t bytes)
     
         struct map_entry* entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
 
-        if ((entry == NULL) || (entry->value.slab.free_count == 0)) {
+        if ((entry == NULL) || (entry->value.slab->slab.free_count == 0)) {
             _allocate_fast_page(size_class, cache); 
             entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
         }
@@ -284,7 +288,7 @@ void heap_free(void* ptr)
         _handle_invalid_free();
 
     if (!is_large) {
-        size_t size = entry->value.slab.size_class;
+        size_t size = entry->value.slab->slab.size_class;
 
         if (slot_start % size != 0) 
             _handle_invalid_free();
@@ -292,14 +296,14 @@ void heap_free(void* ptr)
         int bytemap_index = slot_start / size;
         int bit_number = slot_start / size;
 
-        if (check_free(entry->value.slab.alloc_bitmap, bit_number))
+        if (check_free(entry->value.slab->slab.alloc_bitmap, bit_number))
             _handle_invalid_free();
 
 
         void* dq_entry = quarantine_dequeue(); 
 
         explicit_bzero(ptr, size);
-        set_free(entry->value.slab.alloc_bitmap, bit_number);
+        set_free(entry->value.slab->slab.alloc_bitmap, bit_number);
         quarantine_enqueue(ptr);
 
         if (dq_entry == NULL) 
@@ -309,20 +313,33 @@ void heap_free(void* ptr)
         uintptr_t dq_slot_start = (uintptr_t)dq_entry & page_mask;
 
         struct map_entry* dq_map_entry = addr_map_lookup(SMALL, dq_page_base);
-        size_t dq_size = dq_map_entry->value.slab.size_class;
+        size_t dq_size = dq_map_entry->value.slab->slab.size_class;
         int dq_bit_number = dq_slot_start / dq_size;
 
 
-        dq_map_entry->value.slab.free_count += 1;
+        dq_map_entry->value.slab->slab.free_count += 1;
 
-        dq_map_entry->value.slab.free_top--;
-        int free_slot = dq_map_entry->value.slab.free_top;
+        dq_map_entry->value.slab->slab.free_top--;
+        int free_slot = dq_map_entry->value.slab->slab.free_top;
 
-        dq_map_entry->value.slab.indicies[free_slot] = dq_bit_number; 
+        dq_map_entry->value.slab->slab.indicies[free_slot] = dq_bit_number; 
         
         // This is gonna be for the slab that was freed.
-        if (dq_map_entry->value.slab.free_count == 1) {
-            _push_slab(&(dq_map_entry->value.slab));
+        if (dq_map_entry->value.slab->slab.free_count == 1) {
+            _push_slab(&dq_map_entry->value.slab->slab);
+        } else if (dq_map_entry->value.slab->slab.free_count == dq_map_entry->value.slab->slab.slot_count) {
+            struct slab** cache = &(fast_caches[get_slab_cache_index(dq_map_entry->value.slab->slab.size_class)]);
+
+            struct slab_metadata_slot* metadata_slot = dq_map_entry->value.slab;
+            void* slab_base = metadata_slot->slab.base;
+            uintptr_t map_key = dq_map_entry->key;
+
+            _unlink_slab(cache, &metadata_slot->slab);
+            delete_entry(SMALL, map_key);
+
+            if (munmap(slab_base, page_size) == -1)
+                _exit(127);
+            delete_slab_metadata(metadata_slot);
         }
 
     } else {

@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include "heap_internal.h"
+#include "addr_map.h"
+#include "slab_metadata_allocator.h"
 
 int main() {
-    printf("%zu\n", sizeof(struct slab_for_size));
-
+    return 0;
 }
