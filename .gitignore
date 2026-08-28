@@ -3,4 +3,11 @@ main
 design_rough_notes.md
 .gdb_history
 *_test
-malloc_throughputt
+build/fragmentation
+build/free_tests
+build/latency
+build/malloc_latency
+build/malloc_throughput
+build/mixed_workload
+build/testing
+build/throughput
