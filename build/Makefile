@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -O3 -g -Wall -Wextra -I.. -I../include
+STATS_CFLAGS = $(CFLAGS) -DHEAP_ENABLE_STATS
 
 OBJECTS = obj/main.o \
 	obj/heap.o \
@@ -177,6 +178,58 @@ obj/malloc_latency.o: ../benchmarking/latency/malloc_latency.c
 	$(CC) $(CFLAGS) -c ../benchmarking/latency/malloc_latency.c \
 		-o obj/malloc_latency.o
 
+fragmentation: obj/fragmentation.o obj/stats_heap.o obj/stats_addr_map.o \
+	obj/stats_large_allocations.o obj/stats_ring_cache.o \
+	obj/stats_slab_quarantine.o obj/stats_slab_metadata_allocator.o \
+	obj/heap_stats.o obj/secure_utils.o obj/utils.o
+	$(CC) obj/fragmentation.o obj/stats_heap.o obj/stats_addr_map.o \
+		obj/stats_large_allocations.o obj/stats_ring_cache.o \
+		obj/stats_slab_quarantine.o obj/stats_slab_metadata_allocator.o \
+		obj/heap_stats.o obj/secure_utils.o obj/utils.o -o fragmentation
+
+obj/fragmentation.o: ../benchmarking/fragmentation/fragmentation.c \
+	../include/heap.h ../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../benchmarking/fragmentation/fragmentation.c \
+		-o obj/fragmentation.o
+
+obj/stats_heap.o: ../src/heap.c ../include/heap_internal.h \
+	../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/heap.c -o obj/stats_heap.o
+
+obj/stats_addr_map.o: ../src/addr_map.c ../include/addr_map.h \
+	../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/addr_map.c -o obj/stats_addr_map.o
+
+obj/stats_large_allocations.o: ../src/large_allocations.c \
+	../include/large_allocations.h ../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/large_allocations.c \
+		-o obj/stats_large_allocations.o
+
+obj/stats_ring_cache.o: ../src/ring_cache.c ../include/ring_cache.h \
+	../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/ring_cache.c -o obj/stats_ring_cache.o
+
+obj/stats_slab_quarantine.o: ../src/slab_quarantine.c \
+	../include/slab_quarantine.h ../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/slab_quarantine.c \
+		-o obj/stats_slab_quarantine.o
+
+obj/stats_slab_metadata_allocator.o: ../src/slab_metadata_allocator.c \
+	../include/slab_metadata_allocator.h ../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/slab_metadata_allocator.c \
+		-o obj/stats_slab_metadata_allocator.o
+
+obj/heap_stats.o: ../src/heap_stats.c ../include/heap_stats.h
+	mkdir -p obj
+	$(CC) $(STATS_CFLAGS) -c ../src/heap_stats.c -o obj/heap_stats.o
+
 obj/main.o: ../tests/main.c ../include/heap_internal.h
 	mkdir -p obj
 	$(CC) $(CFLAGS) -c ../tests/main.c -o obj/main.o
@@ -228,4 +281,4 @@ obj/utils.o: ../src/utils.c ../include/utils.h
 clean:
 	rm -rf obj main sanity_test correct_alignment_test read_write_test overlap_test \
 		free_tests page_protection_test reuse_test mixed_workload throughput \
-		malloc_throughput latency malloc_latency testing
+		malloc_throughput latency malloc_latency fragmentation testing

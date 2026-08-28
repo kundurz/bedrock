@@ -16,6 +16,7 @@
 #include "slab_quarantine.h"
 #include "secure_utils.h"
 #include "slab_metadata_allocator.h"
+#include "heap_stats.h"
 
 struct slab** fast_caches;
 
@@ -60,6 +61,8 @@ int _heap_init()
         -1, 
         0
     );
+
+    heap_stats_add_metadata_mapping(4096);
 
     // Check if mmap worked./
     if (metadata_start == MAP_FAILED) {
@@ -118,6 +121,8 @@ void _allocate_fast_page(int size_class, struct slab** cache)
 
     if (new_page == MAP_FAILED) 
         _exit(127);
+
+    heap_stats_add_slab_mapping(page_size);
 
     // Putting it at the head of its cache's available slab list.
     void* next_slab = (*cache);
@@ -237,7 +242,7 @@ void* heap_alloc(size_t bytes)
 
     if (size_class != -1) {
         struct slab** cache = &(fast_caches[get_slab_cache_index(size_class)]);
-    
+
         struct map_entry* entry = addr_map_lookup(SMALL, (uintptr_t)*cache);
 
         if ((entry == NULL) || (entry->value.slab->slab.free_count == 0)) {
@@ -340,6 +345,8 @@ void heap_free(void* ptr)
             if (munmap(slab_base, page_size) == -1)
                 _exit(127);
             delete_slab_metadata(metadata_slot);
+
+            heap_stats_remove_slab_mapping(page_size);
         }
 
     } else {

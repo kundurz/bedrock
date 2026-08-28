@@ -4,6 +4,7 @@
 
 #include "secure_utils.h"
 #include "slab_metadata_allocator.h"
+#include "heap_stats.h"
 
 struct slab_metadata_arena* head;
 
@@ -25,6 +26,8 @@ static void _create_arena() {
 
     size_t full_region_size = sizeof(struct slab_metadata_arena) + 16 * sizeof(struct slab_metadata_slot);
     struct guarded_region region = create_gaurded_region(full_region_size, false);
+
+    heap_stats_add_metadata_mapping(region.total_size);
 
     struct slab_metadata_arena* metadata = (struct slab_metadata_arena*)region.usable_ptr;
 
@@ -126,6 +129,7 @@ void delete_slab_metadata(struct slab_metadata_slot* metadata_ptr) {
 
     if (arena_metadata->bitmap == 0) { 
         unlink_slab_arena(arena_metadata);
+        heap_stats_remove_metadata_mapping(arena_metadata->region.total_size);
         destroy_guarded_region(&(arena_metadata->region));
     } else if (arena_metadata->next == NULL && arena_metadata->prev == NULL && head != arena_metadata) {
         push_slab_arena(arena_metadata);

@@ -4,6 +4,7 @@
 #include "large_allocations.h"
 #include "secure_utils.h"
 #include "ring_cache.h"
+#include "heap_stats.h"
 
 void* hardened_large_alloc(size_t payload_size) {
     long page_size = sysconf(_SC_PAGESIZE);
@@ -14,10 +15,12 @@ void* hardened_large_alloc(size_t payload_size) {
 
     // First we're gonna look for a ring cache
     region = get_best_fit_entry(payload_size); 
-    if (region.usable_ptr == NULL) 
+    if (region.usable_ptr == NULL) {
         region = create_gaurded_region(payload_size, true); 
-    else
+        heap_stats_add_large_mapping(region.total_size);
+    } else {
         unlock_page(region.usable_ptr, region.total_size - 2 * page_size);
+    }
 
     struct large_meta large_metadata;
 

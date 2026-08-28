@@ -4,6 +4,7 @@
 #include "ring_cache.h"
 #include "addr_map.h"
 #include "secure_utils.h"
+#include "heap_stats.h"
 
 struct cache_entry* cache_base;
 static size_t next_entry_index; // for insertion
@@ -27,6 +28,7 @@ static int _search_for_non_occupied_entry() {
 
 int initialize_ring_cache() {
     struct guarded_region region = create_gaurded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry), false);
+    heap_stats_add_metadata_mapping(region.total_size);
 
     if (region.mmap_base == MAP_FAILED)
         return -1;
@@ -48,8 +50,8 @@ void insert_cache_entry(struct guarded_region region) {
     } else {
         int index = _search_for_non_occupied_entry();
         if (index == -1) {
+            heap_stats_remove_large_mapping(next_entry_start->region.total_size);
             destroy_guarded_region(&(next_entry_start->region));
-            
             *next_entry_start = entry;
             next_entry_start->valid = 1;
         } else {

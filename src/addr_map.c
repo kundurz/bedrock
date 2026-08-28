@@ -9,6 +9,7 @@
 #include "addr_map.h"
 #include "utils.h"
 #include "secure_utils.h"
+#include "heap_stats.h"
 
 #define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL // Mathematical constant used to achieve highly uniform data distribution.
 
@@ -64,8 +65,14 @@ int initialize_hash_map(enum map_type self) {
     if (generate_salt(&(map_state->random_salt)) != 0)
         return -1;
 
-    if (self == SMALL) map_state->guard_region = create_gaurded_region(page_size, false);
-    else map_state->guard_region = create_gaurded_region(round_to_nearest_page(sizeof(struct large_meta) * 10), false);
+    if (self == SMALL) {
+        map_state->guard_region = create_gaurded_region(page_size, false);
+        heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
+    }
+    else {
+        map_state->guard_region = create_gaurded_region(round_to_nearest_page(sizeof(struct large_meta) * 10), false);
+        heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
+    }
     map_state->base = map_state->guard_region.usable_ptr;
 
     if (map_state->base == MAP_FAILED)
@@ -183,6 +190,7 @@ static void resize_map(enum map_type self) {
         _exit(127);
 
     map_state->guard_region = create_gaurded_region(map_state->size, false);
+    heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
     map_state->base = map_state->guard_region.usable_ptr;
 
     for (long unsigned int i = 0; i < old_capacity; i++) {
@@ -191,6 +199,7 @@ static void resize_map(enum map_type self) {
             robin_hood_resolution(self, curr->key, curr->value);
     }
 
+    heap_stats_remove_metadata_mapping(guarded_region.total_size);
     destroy_guarded_region(&guarded_region); 
 }
 
