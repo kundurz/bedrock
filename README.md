@@ -58,7 +58,7 @@ Modern allocator engineering is usually governed by three pillars:
 2) Memory efficiency (fragmentation)
 3) Security (hardening & isolation). 
 
-Bedrock  explores how allocator architecture can be designed to be highly optimized for security, reducing the impact of common memory corruption vulnerabilities, such as use-after-free, double-free, invalid free, and metadata corruption.
+Bedrock  explores how allocator architecture can be highly optimized for security, reducing the impact of common memory corruption vulnerabilities, such as use-after-free, double-free, invalid free, and metadata corruption.
 
 The allocator does not attempt to make memory corruption impossible. Instead, it introduces mitigations that aim to make common exploit primitives fail closed.
 
@@ -275,7 +275,7 @@ The following memory reclamation strategy is utilized:
 * empty metadata arenas --> unmapped
 * cached large mappings --> bounded
 * evicted large mappings --> unmapped 
-* 1MADV_DONTNEED` on freed large mappings
+* `MADV_DONTNEED` on freed large mappings
 
 Bedrock intentionally reatins some freed memory to offset the performance overhead of repeated calls to syscalls like `mmap`, but bounds this retention to prevent quarnatine and caching from growing without limit. 
 
