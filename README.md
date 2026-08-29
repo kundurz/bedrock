@@ -2,7 +2,7 @@
 
 Bedrock is a security-hardened dynamic memory allocator. It combines slab-based small allocations and guarded-large allocations with metadata isolation, randomized placement, quarantine, and allocation validitation.
 
-**Author**: Linus Kundur-Zourntos
+**Author**: Linus Kundur-Zourntos<br>
 **Language**: C | **Platform**: Linux | **Build**: Make 
 
 ```
@@ -398,40 +398,7 @@ Bedrock places a guard page immediately after each large allocation. The out-of-
 
 ## Performance Evaluation
 
-### Benchmark environment
-Measurements were collected using the following system:
-
-#### Hardware
-| Component | Specification |
-|---|---|
-| Processor class | 12th-generation Intel x86-64 mobile processor |
-| CPU design | Hybrid performance/efficiency-core architecture |
-| Benchmark core | Process pinned to one performance-core hardware thread |
-| System page size | 4 KiB |
-| Execution environment | Native hardware |
-
-#### Software
-| Component | Version or configuration |
-|---|---|
-| Operating system | 64-bit Linux |
-| Compiler | GCC 13 |
-| C library | glibc 2.39 |
-| Performance counters | Linux `perf` |
-
-#### Benchmark configuration
-| Setting | Configuration |
-|---|---|
-| Execution model | Single-threaded |
-| CPU affinity | Pinned to the same performance core for every run |
-| Optimization | `-O3` |
-| Throughput workload | Steady-state allocation/free churn |
-| Throughput operations | 5 million iterations, 10 million allocator operations |
-| Latency samples | 100,000 allocations and 100,000 frees |
-| Latency clock | `CLOCK_MONOTONIC` |
-| Cache-locality collection | `perf stat`, 30 repetitions |
-| Result aggregation | Median across repeated runs |
-
-**NOTE**: The unhardened free-list implementation contained in the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a seperate Git worktree for benchmarking.
+For information on the benchmarking environment please see: [benchmarking details](benchmarking/README.md)
 
 ### Throughput
 | Allocator | Small-allocation throughput | Relative throughput |
@@ -555,6 +522,16 @@ Bedrock currently targets 64-bit Linux and requires:
 * GNU Make
 * A system supporting `mmap()`, `mprotect()`, and `getrandom()`
 
+### Public Interface
+
+Bedrock exposes a miminal allocation interface throigh `bedrock.h`
+
+| Function | Description |
+|---|---|
+| `bedrock_alloc(size)` | Allocates `size` bytes and returns an aligned pointer, or `NULL` on allocation failure. |
+| `bedrock_free(ptr)` | Releases an allocation previously returned by `bedrock_alloc()`. Invalid frees terminate the process. |
+
+
 ### Building Bedrock
 Clone the repository and build the library variants
 ```bash
@@ -583,15 +560,6 @@ int main(void)
     return 0;
 }
 ```
-
-### Public Interface
-
-Bedrock exposes a miminal allocation interface throigh `bedrock.h`
-
-| Function | Description |
-|---|---|
-| `bedrock_alloc(size)` | Allocates `size` bytes and returns an aligned pointer, or `NULL` on allocation failure. |
-| `bedrock_free(ptr)` | Releases an allocation previously returned by `bedrock_alloc()`. Invalid frees terminate the process. |
 
 #### Dynamic Linking
 From the repository's `build/` directory:
@@ -634,7 +602,7 @@ make large_allocation_overflow_demo
 make clean
 ```
 
-## License
+## LICENSE 
 
 Bedrock is licensed under the Apache License, Version 2.0.
 
