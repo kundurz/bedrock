@@ -401,6 +401,7 @@ Bedrock places a guard page immediately after each large allocation. The out-of-
 For information on the benchmarking environment please see: [benchmarking details](benchmarking/README.md)
 
 ### Throughput
+---
 | Allocator | Small-allocation throughput | Relative throughput |
 |---|---:|---:|
 | Unhardened free-list design | 36.23 million ops/s | 100% |
@@ -420,7 +421,8 @@ This overhead is expected from Bedrock's additional validation, randomized place
 
 Hardening increased the median allocation latency from 23 ns to 52 ns and median free latency from 23 ns to 82 ns. This corresponds to an additional 29 ns per allocation and 58 ns per free. The larger free path cost reflects exact-pointer validation, address-map lookup, allocation-bitmap checking, memory zeroing, quarantine processing, and delayed-reuse bookkeeping. Although the relative increases are substantial, the absolute median cost remains on the order of tens of nanoseconds. Maximum values were omitted because they are particularly sensitive to scheduling and interrupts.
 
-### Cache locality
+### Cache Locality
+---
 The address map originally stored the complete slab metadata structure directly inside each map entry. This made entries large, causing hash map probes to touch more pages.
 
 The design was refactored to store only a pointer to slab metadata in each map entry. The metadata itselflr resides in dedicated guarded arenas. This reduces map-entry size and allows mor eentires to occupy each page.
@@ -443,7 +445,8 @@ The strongest result was the 40% reduction in dTLB misses. Having more compact m
 
 L1 misses increased slightly because accessing the selected slab now requires an additional address dereference. A small amount of L1 locality has been traded for substantially better dTLB locality and lower overall execution cost. 
 
-### Memory fragmentation and mapping overhead
+### Memory Fragmentation and Mapping Overhead
+---
 The fragmentation ebnchmark performed 100,000 allocations using a fixed random seed. It measured allocation region-overhead with the complete working set live and after freeing 50% of allocations in random order.
 ```
 overhead = (mapped allocation bytes / live requested size - 1) x 100
