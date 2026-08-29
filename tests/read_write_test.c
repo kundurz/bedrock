@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
-#include "heap.h"
+#include "heap_internal.h"
 
 struct allocation {
     char* ptr;

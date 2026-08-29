@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
-#include "heap.h"
+#include "heap_internal.h"
 
 static const size_t sizes[] = {
     2049,

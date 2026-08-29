@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "heap.h"
+#include "heap_internal.h"
 
 #define WORKLOAD_ROUNDS 25
 #define ALLOCATIONS_PER_ROUND 4096

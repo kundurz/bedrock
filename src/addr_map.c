@@ -11,11 +11,19 @@
 #include "secure_utils.h"
 #include "heap_stats.h"
 
-#define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL // Mathematical constant used to achieve highly uniform data distribution.
+// Mathematical constant used to achieve highly uniform data distribution.
+#define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL 
 
+// There are two seperate hash maps for large and small allocations.
 static struct hash_map_state slab_map; 
 static struct hash_map_state large_map;
 
+/*
+    Generates random salt to be used in hashing. 
+
+    This makes the layout of the hash map unpredictable
+    to an attacker who does not know the salt.
+*/
 static int generate_salt(uint64_t *salt) {
     unsigned char* output = (unsigned char *)salt;
     size_t remaining = sizeof(*salt);
@@ -94,7 +102,7 @@ int map_select(enum map_type self, struct hash_map_state** map_state) {
         return -1;
     }
 
-    return 0; // Success
+    return 0;
 }
 
 struct map_value construct_map_value(struct slab_metadata_slot* slab_metadata, struct large_meta* large_metadata) {
@@ -123,9 +131,13 @@ static int _addr_map_access_index_key(enum map_type self, int index)
     return relevant_entry->key;
 }
 
-// We need to have a "targetKey" and a "targetValue" variable.
-// The targetkey variable can change based on an insertion, but
-// we need to keep track of the inserted index that we inserted the very first thing.
+/*
+    Robin hood hashing attempts to equalize probe lengths (leading to more uniform lookup times)
+    of all map entries. It achieves this by drastically reducing the variance of map entires.
+
+    This is especially desirable for this project since address map lookups occur frequently in the 
+    hot path.
+*/
 static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t addr_key, struct map_value metadata_value) {
     struct hash_map_state* map_state;
 
@@ -141,14 +153,15 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
     uint16_t targetDib = 0;
     struct map_entry* inserted_entry = NULL;
 
-    // use modulo to bound everything later.
-    // I USE TRUE HERE SO THAT IT WRAPS AROUND, DO NOT GUARD IT1
+    // A true condition is used here so that wrap around behaviour can be achieving.
+    // Naively bounding this will make probing perform incorrectly.
     for (int i = home_entry_index; true ; i++) {
         struct map_entry* curr = (struct map_entry*)map_state->base + (i & (map_state->capacity - 1)); 
         if (curr->is_occupied) {
+            // "Poorer" entry takes place of "richer" entry.
             if (targetDib > curr->dib) {
                 if (inserted_entry == NULL) inserted_entry = curr;
-
+                
                 generic_swap(&targetKey, &curr->key, sizeof(uintptr_t));
                 generic_swap(&targetValue, &curr->value, sizeof(struct map_value));
                 generic_swap(&targetDib, &curr->dib, sizeof(uint8_t));
@@ -160,7 +173,7 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
             curr->dib = targetDib;
             curr->is_occupied = true;
             
-            return inserted_entry; // The point where we find an empty slot is when the search is over.
+            return inserted_entry; 
         }
 
         targetDib++;
@@ -169,8 +182,6 @@ static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t add
     return NULL;
 }
 
-// When we resize a hash map, we almost have to create a new one.
-// This should also take place releti
 static void resize_map(enum map_type self) {
     struct hash_map_state* map_state;
 
@@ -203,7 +214,6 @@ static void resize_map(enum map_type self) {
     destroy_guarded_region(&guarded_region); 
 }
 
-/* This is returning an integer because if something goes wrong, i want to return an error. */
 int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value metadata_value) {
     struct hash_map_state* map_state;
 
@@ -225,7 +235,6 @@ int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value met
     return relevant_entry != NULL;
 }
 
-// I think we can just search linearly form the starting position. 
 struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
     struct hash_map_state* map_state;
 
@@ -255,7 +264,7 @@ struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
 
     }
 
-    return NULL; // entry not found.
+    return NULL;
 }
 
 void addr_map_enumerate(enum map_type self) {
@@ -285,7 +294,6 @@ void print_map_state(enum map_type self) {
     printf("MAP CAPACITY: %ld ENTRIES\n", map_state->capacity);
 }
 
-// THIS UTILIZES THE WRAPAROUND 
 static struct map_entry* _increment_map_address(enum map_type self, struct map_entry* ptr) {
     struct hash_map_state* map_state;
 

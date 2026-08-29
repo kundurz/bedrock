@@ -6,25 +6,6 @@
 #include "utils.h"
 #include "secure_utils.h"
 
-/*
-    Determines the fast chunk size class 
-    a size request would correspond to. 
-    
-    AVAILABLE SIZE CLASSES:
-    16 B 
-    32 B 
-    64 B 
-    128 B 
-    256 B 
-    512 B 
-    1024 B
-    2048 B
-
-    Return value:
-    Returns the size class or -1. 
-    -1 indicates that the requested chunk is actually a large
-    chunk.
-*/
 int determine_size_class(size_t size)
 {
     if (size > 2048) return -1;
@@ -58,7 +39,7 @@ int get_slab_cache_index(size_t size_class) {
         case 2048:
             return 7;
         default:
-            return -1; // Something went wrong.
+            return -1;
     }
 }
 
@@ -115,9 +96,8 @@ void set_allocated(uint64_t* bitmap, int bit_number) {
 }
 
 bool check_free(uint64_t* bitmap, int bit_number) {
-    // This is the index of the bitmap that this belongs in.
     int region_number = bit_number / 64;
-    int bit_index = bit_number % 64; // The speciifc index within the region.
+    int bit_index = bit_number % 64; 
 
     uint64_t bitmask = UINT64_C(1) << bit_index;
     uint64_t bitmap_region = bitmap[region_number];

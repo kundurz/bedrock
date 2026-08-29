@@ -8,7 +8,7 @@
 #include <time.h>
 #include <string.h>
 #include "utils.h"
-#include "heap.h"
+#include "heap_internal.h"
 
 int main() {
     for (int i = 0 ; i < 10 ; i++) {

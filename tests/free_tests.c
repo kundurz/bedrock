@@ -5,7 +5,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <time.h>
-#include "heap.h"
+#include "heap_internal.h"
 
 // Generates a pseudo-random 64-bit unsigned integer
 uint64_t rand64(void) {

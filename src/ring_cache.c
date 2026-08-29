@@ -7,7 +7,7 @@
 #include "heap_stats.h"
 
 struct cache_entry* cache_base;
-static size_t next_entry_index; // for insertion
+static size_t next_entry_index; 
 
 static struct cache_entry _construct_cache_entry(struct guarded_region region) {
     struct cache_entry entry;

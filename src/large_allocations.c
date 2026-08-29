@@ -13,7 +13,6 @@ void* hardened_large_alloc(size_t payload_size) {
 
     struct guarded_region region;
 
-    // First we're gonna look for a ring cache
     region = get_best_fit_entry(payload_size); 
     if (region.usable_ptr == NULL) {
         region = create_gaurded_region(payload_size, true); 
@@ -57,5 +56,5 @@ void hardened_large_free(void* ptr) {
         return;
 
     lock_page((char*)ptr - region.offset, region.total_size - 2 * page_size);
-    insert_cache_entry(region); // This will handle it being destroyed later. 
+    insert_cache_entry(region); 
 }

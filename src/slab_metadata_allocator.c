@@ -8,20 +8,6 @@
 
 struct slab_metadata_arena* head;
 
-// The internal allocator will actually have inline metadata. 
-// So it will be like 
-/* 
--------
-GUARD PAGE 
--------
-metadata
-------
-SLOTS
-----
-GUARD PAGE
-----
-
-*/
 static void _create_arena() {
 
     size_t full_region_size = sizeof(struct slab_metadata_arena) + 16 * sizeof(struct slab_metadata_slot);
@@ -119,7 +105,6 @@ struct slab_metadata_slot* insert_slab_metadata(struct slab* slab_metadata) {
     return free_slot;
 }
 
-// Now we need to make it so instead of pointing to slab metadata, it points toa  slab slot metadatat struct so we can access its owner. 
 void delete_slab_metadata(struct slab_metadata_slot* metadata_ptr) {
     struct slab_metadata_arena* arena_metadata = metadata_ptr->owner; 
 

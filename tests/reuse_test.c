@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "heap.h"
+#include "heap_internal.h"
 
 #define LARGE_CACHE_CAPACITY 32
 #define QUARANTINE_CAPACITY 30

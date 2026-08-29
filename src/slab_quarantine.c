@@ -51,7 +51,6 @@ void quarantine_enqueue(void* slot_base) {
 
 }
 
-// this function will return the base address. 
 void* quarantine_dequeue() {
     if (slot_quarantine.length < 30)
         return NULL;
