@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include "heap.h"
+#include "heap_internal.h"
 
 #define WINDOW_SIZE 10000
 #define TOTAL_ITERATIONS 5000000

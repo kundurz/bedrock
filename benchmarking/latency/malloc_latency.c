@@ -4,7 +4,7 @@
 #include <stdint.h> 
 #include <time.h>
 
-#include "heap.h"
+#include "heap_internal.h"
 
 #define WINDOW_SIZE 5000
 #define NUM_MEASUREMENTS 100000
