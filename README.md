@@ -413,6 +413,7 @@ Bedrock currently achieves a 6.30 M operations/s on the measured small-allocatio
 This overhead is expected from Bedrock's additional validation, randomized placement, metadata isolation, quarantine, and memory-protection mechanisms. The benchmark therefore illustrates the cost of the allocator's security-oriented design rather than attempting to demonstreate superiority over production allocators.
 
 ### Allocation & Free Latency
+---
 | Percentile | Unhardened alloc | Bedrock alloc | Unhardened free | Bedrock free |
 | ---------- | ---------------: | ------------: | --------------: | -----------: |
 | p50        |            23 ns |         52 ns |           24 ns |        82 ns |
