@@ -11,7 +11,7 @@ struct slab_metadata_arena* head;
 static void _create_arena() {
 
     size_t full_region_size = sizeof(struct slab_metadata_arena) + 16 * sizeof(struct slab_metadata_slot);
-    struct guarded_region region = create_gaurded_region(full_region_size, false);
+    struct guarded_region region = create_guarded_region(full_region_size, false);
 
     heap_stats_add_metadata_mapping(region.total_size);
 
@@ -75,6 +75,12 @@ static void unlink_slab_arena(struct slab_metadata_arena* arena) {
     arena->prev = arena->next = NULL;
 }
 
+/*
+    insert_slab_metadata() will insert slab metadata into a 
+    metadata slot within the allocator.
+
+    The first 0 in the arena bitmap is the empty slot that is used.
+*/
 struct slab_metadata_slot* insert_slab_metadata(struct slab* slab_metadata) {
 
     if (head == NULL) 
@@ -105,6 +111,15 @@ struct slab_metadata_slot* insert_slab_metadata(struct slab* slab_metadata) {
     return free_slot;
 }
 
+/*
+    delete_slab_metadata() deletes slab metadata from its slot.
+
+    The owner pointer inside the slab_metadata_slot struct points to the
+    arena metadata within the very first page.
+
+    Since the whole arena region is approximately 9 pages, the address
+    to the arena metdata cannot be recovered from just the slot address alone.
+*/
 void delete_slab_metadata(struct slab_metadata_slot* metadata_ptr) {
     struct slab_metadata_arena* arena_metadata = metadata_ptr->owner; 
 

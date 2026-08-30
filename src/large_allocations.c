@@ -6,6 +6,34 @@
 #include "ring_cache.h"
 #include "heap_stats.h"
 
+/*
+    hardened_large_alloc() returns a memory region based on the
+    requested payload size. 
+
+    The execution flow is as follows:
+
+ hardened_large_alloc(requested_size)
+              |
+              v
+   Search large-region cache
+              |
+       +------+------+
+       |             |
+   Cache hit?     Cache miss?
+       |             |
+       v             v
+ Unprotect the    Allocate a new
+ cached region    guarded region
+       |             |
+       +------+------+
+              |
+              v
+ Record allocation metadata
+   in the address map
+              |
+              v
+     Return pointer to user
+*/
 void* hardened_large_alloc(size_t payload_size) {
     long page_size = sysconf(_SC_PAGESIZE);
     if (page_size == -1)
@@ -13,9 +41,12 @@ void* hardened_large_alloc(size_t payload_size) {
 
     struct guarded_region region;
 
+    // Check the cache
     region = get_best_fit_entry(payload_size); 
+
+    // If a suitable entry could not be found within the cache:
     if (region.usable_ptr == NULL) {
-        region = create_gaurded_region(payload_size, true); 
+        region = create_guarded_region(payload_size, true); 
         heap_stats_add_large_mapping(region.total_size);
     } else {
         unlock_page(region.usable_ptr, region.total_size - 2 * page_size);
@@ -36,6 +67,41 @@ void* hardened_large_alloc(size_t payload_size) {
     return (void*)((char*)region.usable_ptr + region.offset);
 }
 
+/*
+    hardened_large_free() is responsible for freeing
+    large allocations.
+
+hardened_large_free(pointer)
+             |
+             v
+ Look up pointer in large
+ allocation address map
+             |
+      +------+------+
+      |             |
+    Found?       Not found?
+      |             |
+      v             v
+ Reconstruct the   Reject free
+ guarded region
+      |
+      v
+ Remove allocation from
+    the address map
+      |
+      v
+ Discard allocation contents
+ and protect the usable pages
+      |
+      v
+ Insert guarded region into
+    large-allocation cache
+      |
+      v
+ Region may be reused by a
+ future large allocation
+
+*/
 void hardened_large_free(void* ptr) {
     long page_size = sysconf(_SC_PAGESIZE); 
     if (page_size == -1)

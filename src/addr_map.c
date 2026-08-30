@@ -14,7 +14,7 @@
 // Mathematical constant used to achieve highly uniform data distribution.
 #define GOLDEN_RATIO_64 0x9e3779b97f4a7c15ULL 
 
-// There are two seperate hash maps for large and small allocations.
+// There are two separate hash maps for large and small allocations.
 static struct hash_map_state slab_map; 
 static struct hash_map_state large_map;
 
@@ -74,11 +74,11 @@ int initialize_hash_map(enum map_type self) {
         return -1;
 
     if (self == SMALL) {
-        map_state->guard_region = create_gaurded_region(page_size, false);
+        map_state->guard_region = create_guarded_region(page_size, false);
         heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
     }
     else {
-        map_state->guard_region = create_gaurded_region(round_to_nearest_page(sizeof(struct large_meta) * 10), false);
+        map_state->guard_region = create_guarded_region(round_to_nearest_page(sizeof(struct large_meta) * 10), false);
         heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
     }
     map_state->base = map_state->guard_region.usable_ptr;
@@ -133,10 +133,14 @@ static int _addr_map_access_index_key(enum map_type self, int index)
 
 /*
     Robin hood hashing attempts to equalize probe lengths (leading to more uniform lookup times)
-    of all map entries. It achieves this by drastically reducing the variance of map entires.
+    of all map entries. It achieves this by drastically reducing the variance of map entries.
 
     This is especially desirable for this project since address map lookups occur frequently in the 
     hot path.
+
+    dib: Stands for "distance to initial bucket". During insertion, the incoming
+         entry displaces an occupant when its DIB is greater than the occupant's DIB. 
+
 */
 static struct map_entry* robin_hood_resolution(enum map_type self, uintptr_t addr_key, struct map_value metadata_value) {
     struct hash_map_state* map_state;
@@ -200,7 +204,7 @@ static void resize_map(enum map_type self) {
     if (!add_size_t_safely(map_state->capacity, map_state->capacity, &(map_state->capacity)))
         _exit(127);
 
-    map_state->guard_region = create_gaurded_region(map_state->size, false);
+    map_state->guard_region = create_guarded_region(map_state->size, false);
     heap_stats_add_metadata_mapping(map_state->guard_region.total_size);
     map_state->base = map_state->guard_region.usable_ptr;
 
@@ -235,6 +239,15 @@ int addr_map_insert(enum map_type self, uintptr_t addr_key, struct map_value met
     return relevant_entry != NULL;
 }
 
+/*
+    addr_map_lookup() looks for an address map entry with a given key. 
+    
+    It uses the address map's current capacity along with the hash address to find
+    the initial bucket. 
+
+    If it is not there, it performs linear probing until it reaches an empty slot. When
+    it reaches an empty slot, the search terminates.
+*/
 struct map_entry* addr_map_lookup(enum map_type self, uintptr_t addr_key) {
     struct hash_map_state* map_state;
 
@@ -311,6 +324,14 @@ static struct map_entry* _increment_map_address(enum map_type self, struct map_e
     return next;
 } 
 
+/*
+    _backshift_delete() is responsible for removing entries from an
+    address map.
+
+    Instead of using tombstones, backward shift deletion removes the requested
+    entry and removes subsequent entries backward until the algorithm reaches either 
+    an empty bucket or an entry already occupying its ideal bucket.
+*/
 static int _backshift_delete(enum map_type self, uintptr_t addr_key) {
     struct hash_map_state* map_state;
 

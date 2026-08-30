@@ -26,7 +26,7 @@ int compare_uint64(const void* a, const void* b) {
     return 0;
 }
 
-void measure_seperate_latencies() {
+void measure_separate_latencies() {
     void* window[WINDOW_SIZE] = {0};
 
     for (int i = 0; i < WINDOW_SIZE; i++) {
@@ -83,6 +83,6 @@ void measure_seperate_latencies() {
 
 int main() {
 
-    measure_seperate_latencies();
+    measure_separate_latencies();
     return 0;
 }

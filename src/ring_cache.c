@@ -27,7 +27,7 @@ static int _search_for_non_occupied_entry() {
 }
 
 int initialize_ring_cache() {
-    struct guarded_region region = create_gaurded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry), false);
+    struct guarded_region region = create_guarded_region(NUM_CACHE_BLOCKS * sizeof(struct cache_entry), false);
     heap_stats_add_metadata_mapping(region.total_size);
 
     if (region.mmap_base == MAP_FAILED)
@@ -63,6 +63,11 @@ void insert_cache_entry(struct guarded_region region) {
     next_entry_index = (next_entry_index + 1) % NUM_CACHE_BLOCKS;
 }
 
+/*
+    get_best_fit_entry() searches the ring cache and returns
+    the smallest region capable of satisfying the payload_size 
+    request.
+*/
 struct guarded_region get_best_fit_entry(size_t payload_size) {
     struct cache_entry* best_fit_entry = NULL;
 

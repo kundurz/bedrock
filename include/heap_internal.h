@@ -32,7 +32,6 @@ struct slab {
     uint64_t alloc_bitmap[MAX_SLAB_SLOTS / 64];
 };
 
-// Okay so every 
 
 /* Internal heap functions */
 int _heap_init();

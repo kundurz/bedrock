@@ -5,7 +5,6 @@
 #include "heap_internal.h"
 #include "secure_utils.h"
 
-// This is good. It's small enough to fit within a cache line.
 struct slab_metadata_arena  {
     struct guarded_region region;
 

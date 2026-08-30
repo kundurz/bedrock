@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#define PAGE_SIZE_BYTES 4096
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +86,12 @@ int _heap_init()
     return 0;
 }
 
+/*
+    _allocate_fast_page() creates a slab for a particular size class. 
+
+    The metadata for the slab is stored in a separate memory region
+    than the slab itself.
+*/
 void _allocate_fast_page(int size_class, struct slab** cache) 
 {
     long page_size = sysconf(_SC_PAGESIZE);
@@ -104,6 +109,7 @@ void _allocate_fast_page(int size_class, struct slab** cache)
 
     if (new_page == MAP_FAILED) 
         _exit(127);
+
 
     heap_stats_add_slab_mapping(page_size);
 
@@ -125,8 +131,11 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     metadata.prev = NULL;
     metadata.free_top = 0;
 
+    // A shuffled free-index stack is created to dictate which order the slots will be 
+    // allocated in.
     fisher_yates_shuffle(metadata.indicies, metadata.slot_count);
 
+    // The constructed metadata is inserted into a separate memory region.
     struct slab_metadata_slot* ptr = insert_slab_metadata(&metadata);
 
     if (next_slab != NULL) {
@@ -138,6 +147,7 @@ void _allocate_fast_page(int size_class, struct slab** cache)
     if (!addr_map_insert(SMALL, (uintptr_t)new_page, map_value)) 
         _exit(127);
 
+    // The new slab is pushed to the front of its respective cache.
     *cache = (struct slab*)new_page;
 }
 
@@ -156,6 +166,16 @@ void _unlink_slab(struct slab** cache, struct slab* slab) {
     slab->prev = NULL;
 }
 
+/*
+    _push_slab() adds a slab back to the available
+    slab list for its size class.
+
+    The indicies field is a stack that speciifes the order in which slots
+    are allocated.
+
+    The free_top field indicates the top of the stack and indicates  which
+    slot should be allocated next.
+*/
 void _push_slab(struct slab* slab) {
     size_t size_class = slab->size_class;
 
@@ -174,6 +194,9 @@ void _push_slab(struct slab* slab) {
     *cache = (struct slab*)slab->base;
 }
 
+/*
+    _slab_alloc() returns the address of a slot in a particular slab.
+*/
 void* _slab_alloc(struct slab** cache, struct map_entry* map_entry) {
     struct slab* free_slab = &map_entry->value.slab->slab;
 
@@ -184,6 +207,8 @@ void* _slab_alloc(struct slab** cache, struct map_entry* map_entry) {
     free_slab->free_count--;
 
 
+    // If a slab is completely full, it is removed
+    // from the linked list.
     if (free_slab->free_count == 0) {
         _unlink_slab(cache, free_slab); 
     }
@@ -193,6 +218,16 @@ void* _slab_alloc(struct slab** cache, struct map_entry* map_entry) {
     return slot_address;
 }
 
+/*
+    heap_alloc() splits the allocation path between small
+    allocations and large allocations.
+
+    A slab allocator handles small allocations while a large allocation
+    request results in a guarded mmap-ed region being returned to the caller.
+
+    Small are rounded to one of eight power-of-two size classes 
+    ranging from 16 B - 2048 B. 
+*/
 void* heap_alloc(size_t bytes) 
 {
     if (!heap_initialized) {
@@ -227,6 +262,14 @@ void _handle_invalid_free() {
     _exit(127); 
 }
 
+/*
+    heap_free() frees a pointer returned from heap_alloc() 
+    that has not been freed since the call to heap_alloc().
+
+    For slab bitmaps: 
+    0 --> not allocated to the user (could either be free or quarantined)
+    1 --> allocated to the user
+*/
 void heap_free(void* ptr) 
 {
     if (ptr == NULL)
@@ -236,8 +279,11 @@ void heap_free(void* ptr)
     if (page_size == -1)
         _exit(127); 
 
+    
     uintptr_t page_mask = ((uintptr_t)sysconf(_SC_PAGESIZE) - 1);
 
+    // For small allocations, we use the page mask to retrieve the slab's base address
+    // from the returned slot address.
     uintptr_t page_base = (uintptr_t)ptr & ~page_mask;
     uintptr_t slot_start = (uintptr_t)ptr & page_mask;
 
@@ -249,6 +295,8 @@ void heap_free(void* ptr)
         is_large = true;
     }
 
+    // If after both address map lookups it is not found
+    // the process is terminated because the free is invalid.
     if (entry == NULL)  
         _handle_invalid_free();
 
@@ -261,26 +309,35 @@ void heap_free(void* ptr)
         int bytemap_index = slot_start / size;
         int bit_number = slot_start / size;
 
+        // Reject a double free if the slot is no longer marked as allocated.
         if (check_free(entry->value.slab->slab.alloc_bitmap, bit_number))
             _handle_invalid_free();
 
-
+        // Dequeue a slot from the quarantine to make space 
+        // for the slot that has just been freed. 
+        // The dequeued slot is out of the quarantine
+        // and can be made available to the user.
         void* dq_entry = quarantine_dequeue(); 
 
         explicit_bzero(ptr, size);
+
+        // The current slot is set to unallocated and is put 
+        // into the quarantine. 
         set_free(entry->value.slab->slab.alloc_bitmap, bit_number);
         quarantine_enqueue(ptr);
 
         if (dq_entry == NULL) 
             return;
 
+        // From the dequeued slot, the page mask is used to get the 
+        // base address of its slab.
         uintptr_t dq_page_base = (uintptr_t)dq_entry & ~page_mask;
         uintptr_t dq_slot_start = (uintptr_t)dq_entry & page_mask;
 
+        // Update the dequeued slot's slab's metadata.
         struct map_entry* dq_map_entry = addr_map_lookup(SMALL, dq_page_base);
         size_t dq_size = dq_map_entry->value.slab->slab.size_class;
         int dq_bit_number = dq_slot_start / dq_size;
-
 
         dq_map_entry->value.slab->slab.free_count += 1;
 
@@ -289,7 +346,13 @@ void heap_free(void* ptr)
 
         dq_map_entry->value.slab->slab.indicies[free_slot] = dq_bit_number; 
         
-        // This is gonna be for the slab that was freed.
+        /* 
+         If the slab was previously full and now has an empty slot (free_count == 1),
+         it is added back to its available slab list.
+
+         If the slab is completely empty it is unlinked and its metadata
+         is destroyed.
+        */ 
         if (dq_map_entry->value.slab->slab.free_count == 1) {
             _push_slab(&dq_map_entry->value.slab->slab);
         } else if (dq_map_entry->value.slab->slab.free_count == dq_map_entry->value.slab->slab.slot_count) {

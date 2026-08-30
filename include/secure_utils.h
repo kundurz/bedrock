@@ -12,7 +12,7 @@ struct guarded_region {
     ssize_t offset;
 };
 
-struct guarded_region create_gaurded_region(size_t length, bool offset); 
+struct guarded_region create_guarded_region(size_t length, bool offset); 
 void destroy_guarded_region(struct guarded_region* region); 
 
 void lock_page(void* base, size_t region_size);
