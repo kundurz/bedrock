@@ -97,7 +97,7 @@ The allocator attempts to protect
 ## Security Mitigations
 
 ### Metadata isolation
-Small and large allocation metadata is stored in a memory region seperate from user-controlled allocation regions. A linear overflow from a user allocation region therefore cannot directly overwrite chunk headers or free-list pointers. This does not protect metadata from exploits that utilize arbitrary address write vulnerabilities.
+Small and large allocation metadata is stored in a memory region separate from user-controlled allocation regions. A linear overflow from a user allocation region therefore cannot directly overwrite chunk headers or free-list pointers. This does not protect metadata from exploits that utilize arbitrary address write vulnerabilities.
 
 ### Invalid-free detection
 The allocator rejcts:
@@ -147,14 +147,14 @@ Mapping-size and page-rounding calculations use checked-arithmetic. A deteced ov
               │                     │
        fixed-size slots       guarded mapping
 ```
-Bedrock seperates allocations into a small path and a large path. Small allocations are rounded up to one of eight power-of-two size classes ranging from 16 to 2048. This is done to guarantee predictable performance. Large allocations recieve dedicated virtual-memory mappigns that allow page-level protection and randomized placement. This was chosen over a traditional free-list design because splitting and coalescing mechanics are prime targets for heap exploitation.
+Bedrock separates allocations into a small path and a large path. Small allocations are rounded up to one of eight power-of-two size classes ranging from 16 to 2048. This is done to guarantee predictable performance. Large allocations recieve dedicated virtual-memory mappigns that allow page-level protection and randomized placement. This was chosen over a traditional free-list design because splitting and coalescing mechanics are prime targets for heap exploitation.
 
 ### Metadata Management
-As mentioned earlier in this document, metadata is never stored inline and is always maintained in a seperate memory region. Each large allocation has its own metadata. For small allocations metadata is per-slab (not per-slot). 
+As mentioned earlier in this document, metadata is never stored inline and is always maintained in a separate memory region. Each large allocation has its own metadata. For small allocations metadata is per-slab (not per-slot). 
 
 Each slab is identified by its page-aligned address. The allocator uses that address as a key in an address map whose value points to the slab's metadata. 
 
-Each large allocation is identified by the exact pointer returned to the caller from `bedrock_alloc()`. The allocator uses that pointer as a key in a seperate address map whoe value contains the allocation's metadata. 
+Each large allocation is identified by the exact pointer returned to the caller from `bedrock_alloc()`. The allocator uses that pointer as a key in a separate address map whose value contains the allocation's metadata. 
 
 ```
                   BEDROCK ALLOCATION METADATA
@@ -200,7 +200,7 @@ Each large allocation is identified by the exact pointer returned to the caller 
 
 ### Address maps
 
-The allocator maintains seperate address maps for small slabs and large allocations. Both use open-addressed Robin Hood hashing with random per-map salt. 
+The allocator maintains separate address maps for small slabs and large allocations. Both use open-addressed Robin Hood hashing with random per-map salt. 
 
 #### Collision Resolution Policy
 Robin hood hashing was the chosen collision resolution policy because address lookup occurs on critical allocation and free paths. With ordianry linear probing, entires that suffer early collisions can develop long and uneven probe chains. Robin hood hashing seeks to equalize the lookup length of different entires and avoids a small number of entires becoming disproportionately expensive to find. 
@@ -208,7 +208,7 @@ Robin hood hashing was the chosen collision resolution policy because address lo
 #### Salted address hashing
 Salted address maps are implemented to make table layout unpredictable and deliberate collision construction more difficult.Because of this, an attacker who knows the table size and hash function cannot predict which addresses colide. A per-process random-salt makes collision patterns dependent on runtime entropy. 
 
-Having seperate salts for large and small address maps ensures that learning about the collision behaviour of one map does not yield any meaningful insight into the layout of the other. 
+Having separate salts for large and small address maps ensures that learning about the collision behaviour of one map does not yield any meaningful insight into the layout of the other. 
 
 #### Load-factor limit
 Open-addressed hash tables become increasingly expensive as they approach full capacity, as high occupancy creates longer probe clusters. 
@@ -260,7 +260,7 @@ QUARANTINED SLOT
     ▼
 AVAILABLE SLOT
 ```
-Slots shall remain in the quarantine until `bedrock_free()` has been called 30 seperate times.
+Slots shall remain in the quarantine until `bedrock_free()` has been called 30 separate times.
 
 The following state machine reflects large allocations:
 ```
@@ -400,7 +400,7 @@ Bedrock places a guard page immediately after each large allocation. The out-of-
 
 For information on the benchmarking environment please see: [benchmarking details](benchmarking/README.md)
 
-The unhardened free-list implementation used in some of the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a seperate Git worktree for benchmarking.
+The unhardened free-list implementation used in some of the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a separate Git worktree for benchmarking.
 
 
 
@@ -446,7 +446,7 @@ Cache behaviour was measured with `perf stat` over 30 repetitions of small alloc
 | dTLB misses per operation | 0.50 | 0.30 | −40.00% |
 | dTLB miss rate | 0.71% | 0.41% | −0.30 points |
 
-The strongest result was the 40% reduction in dTLB misses. Having more compact map entires allowed probing to touch fewer distinct virtual memory pages, reducing address-translation pressure and improving this metric. This helped contribute to a 6.97% reduction in cycles per operation despite intstructions per operation remaining nearly unchanged. 
+The strongest result was the 40% reduction in dTLB misses. Having more compact map entries allowed probing to touch fewer distinct virtual memory pages, reducing address-translation pressure and improving this metric. This helped contribute to a 6.97% reduction in cycles per operation despite instructions per operation remaining nearly unchanged. 
 
 L1 misses increased slightly because accessing the selected slab now requires an additional address dereference. A small amount of L1 locality has been traded for substantially better dTLB locality and lower overall execution cost. 
 
