@@ -400,7 +400,7 @@ Bedrock places a guard page immediately after each large allocation. The out-of-
 
 For information on the benchmarking environment please see: [benchmarking details](benchmarking/README.md)
 
-The unhardened free-list implementation contained in the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a seperate Git worktree for benchmarking.
+The unhardened free-list implementation used in some of the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a seperate Git worktree for benchmarking.
 
 
 
