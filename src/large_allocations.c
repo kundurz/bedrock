@@ -60,7 +60,7 @@ void* hardened_large_alloc(size_t payload_size) {
     large_metadata.offset = region.offset;
 
     struct map_value map_value = construct_map_value(NULL, &large_metadata);
-    if (!addr_map_insert(LARGE, (char*)region.usable_ptr + region.offset, map_value)) {
+    if (!addr_map_insert(LARGE, (uintptr_t)((char*)region.usable_ptr + region.offset), map_value)) {
         return NULL;
     }
 

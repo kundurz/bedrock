@@ -71,13 +71,13 @@ void insert_cache_entry(struct guarded_region region) {
 struct guarded_region get_best_fit_entry(size_t payload_size) {
     struct cache_entry* best_fit_entry = NULL;
 
-    size_t best_fit_size = -1;
+    size_t best_fit_size = SIZE_MAX;
     for (int i = 0; i < NUM_CACHE_BLOCKS; i++) {
         if (!cache_base[i].valid) 
             continue;
         size_t usable_size = cache_base[i].region.total_size - 2 * sysconf(_SC_PAGESIZE) - cache_base[i].region.offset; 
         if (usable_size >= payload_size) {
-            if (best_fit_size == -1 || usable_size < best_fit_size) {
+            if (usable_size < best_fit_size) {
                 best_fit_size = usable_size;
                 best_fit_entry = &cache_base[i];
             } 

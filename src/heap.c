@@ -306,7 +306,6 @@ void heap_free(void* ptr)
         if (slot_start % size != 0) 
             _handle_invalid_free();
 
-        int bytemap_index = slot_start / size;
         int bit_number = slot_start / size;
 
         // Reject a double free if the slot is no longer marked as allocated.

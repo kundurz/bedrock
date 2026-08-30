@@ -117,20 +117,6 @@ struct map_value construct_map_value(struct slab_metadata_slot* slab_metadata, s
     return value;
 }
 
-static int _addr_map_access_index_key(enum map_type self, int index) 
-{
-    struct hash_map_state* map_state;
-
-    int success = map_select(self, &map_state); 
-
-    if (success == -1)
-        return -1;
-
-    struct map_entry* relevant_entry = (struct map_entry*)map_state->base + index; 
-
-    return relevant_entry->key;
-}
-
 /*
     Robin hood hashing attempts to equalize probe lengths (leading to more uniform lookup times)
     of all map entries. It achieves this by drastically reducing the variance of map entries.

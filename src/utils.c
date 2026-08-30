@@ -12,12 +12,15 @@ int determine_size_class(size_t size)
     if (size <= 16)
         return 16;
 
-    int cls = 16;
+    size_t cls = 16;
 
     while (cls < size && cls < 2048)
         cls <<= 1;
 
-    return (cls > 2048) ? -1 : cls;
+    if (cls > 2048)
+        return -1;
+
+    return (int)cls;
 }
 
 int get_slab_cache_index(size_t size_class) {
