@@ -536,7 +536,7 @@ Bedrock exposes a minimal allocation interface through `bedrock.h`
 
 | Function | Description |
 |---|---|
-| `bedrock_alloc(size)` | Allocates `size` bytes and returns an aligned pointer, or `NULL` on allocation failure. |
+| `bedrock_alloc(size)` | Allocates `size` bytes of suitably aligned memory. Returns a pointer on success. Returns NULL when an allocation cannot be recorded; unrecoverable initialization or system failures termiante the process.|
 | `bedrock_free(ptr)` | Releases an allocation previously returned by `bedrock_alloc()`. Invalid frees terminate the process. |
 
 
