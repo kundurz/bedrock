@@ -12,6 +12,12 @@
 #define REQUEST_SIZE 4096
 #define WRITE_SIZE (REQUEST_SIZE + 4096)
 
+#define BOLD "\033[1m"
+#define GREEN "\033[32m"
+#define RED "\033[31m"
+#define CYAN "\033[36m"
+#define RESET "\033[0m"
+
 void overwrite_allocation(void *pointer, size_t bytes)
 {
     volatile unsigned char *cursor = pointer;
@@ -40,7 +46,7 @@ void bedrock_overflow(void)
     _exit(0);
 }
 
-int run_scenario(const char *name, void (*scenario)(void))
+int run_scenario(void (*scenario)(void), int *signal_number)
 {
     pid_t child = fork();
     if (child == -1) {
@@ -58,34 +64,55 @@ int run_scenario(const char *name, void (*scenario)(void))
     }
 
     if (WIFSIGNALED(status)) {
-        printf("%s: overflow stopped by signal %d\n",
-               name, WTERMSIG(status));
+        *signal_number = WTERMSIG(status);
         return 1;
     }
 
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        printf("%s: overflow completed without an immediate fault\n", name);
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
         return 0;
-    }
 
-    printf("%s: scenario failed with exit status %d\n",
-           name, WEXITSTATUS(status));
     return -1;
 }
 
 int main(void)
 {
-    printf("Requested bytes: %d\n", REQUEST_SIZE);
-    printf("Bytes written:   %d\n\n", WRITE_SIZE);
+    int glibc_signal = 0;
+    int bedrock_signal = 0;
+    int glibc_result = run_scenario(glibc_overflow, &glibc_signal);
+    int bedrock_result = run_scenario(bedrock_overflow, &bedrock_signal);
 
-    int glibc_result = run_scenario("glibc malloc", glibc_overflow);
-    int bedrock_result = run_scenario("Bedrock", bedrock_overflow);
+    printf("\n" BOLD CYAN);
+    puts("╭────────────────────────────────────────────────────────────╮");
+    puts("│       BEDROCK SECURITY DEMO · LARGE BUFFER OVERFLOW        │");
+    puts("╰────────────────────────────────────────────────────────────╯" RESET);
+
+    printf("\n  %-22s %d bytes\n", "requested allocation", REQUEST_SIZE);
+    printf("  %-22s %d bytes\n", "attempted write", WRITE_SIZE);
+    printf("  %-22s +%d bytes\n", "overflow", WRITE_SIZE - REQUEST_SIZE);
+
+    printf("\n" BOLD "  Allocator             Outcome" RESET "\n");
+    puts("  ──────────────────────────────────────────────────────────");
+
+    if (glibc_result == 0)
+        printf("  %-21s " RED "overflow completed" RESET "\n", "glibc malloc");
+    else if (glibc_result == 1)
+        printf("  %-21s stopped by signal %d\n", "glibc malloc", glibc_signal);
+    else
+        printf("  %-21s scenario error\n", "glibc malloc");
+
+    if (bedrock_result == 1)
+        printf("  %-21s " GREEN "blocked by guard page (signal %d)" RESET "\n",
+               "Bedrock", bedrock_signal);
+    else if (bedrock_result == 0)
+        printf("  %-21s " RED "overflow completed" RESET "\n", "Bedrock");
+    else
+        printf("  %-21s scenario error\n", "Bedrock");
 
     if (glibc_result == 0 && bedrock_result == 1) {
-        puts("\nBedrock's trailing guard page stopped the overflow.");
+        printf("\n" GREEN BOLD "  ✓ Bedrock's trailing guard page stopped the overflow." RESET "\n\n");
         return 0;
     }
 
-    puts("\nThe expected comparison was not observed on this run.");
+    printf("\n" RED BOLD "  ✗ The expected comparison was not observed." RESET "\n\n");
     return 1;
 }

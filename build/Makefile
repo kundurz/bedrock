@@ -38,8 +38,9 @@ tests:
 	exit $$test_status
 
 examples:
-	$(MAKE) -B use_after_free_demo large_allocation_overflow_demo
-	example_status=0; \
+	@$(MAKE) --no-print-directory --silent -B \
+		use_after_free_demo large_allocation_overflow_demo
+	@example_status=0; \
 	./use_after_free_demo || example_status=1; \
 	./large_allocation_overflow_demo || example_status=1; \
 	exit $$example_status
@@ -72,7 +73,7 @@ use_after_free_demo: obj/use_after_free_demo.o libbedrock.so
 obj/use_after_free_demo.o: ../examples/use_after_free_demo.c \
 	../include/bedrock.h
 	mkdir -p obj
-	$(CC) -g -Wall -Wextra -I.. -I../include \
+	$(CC) -g -Wall -Wextra -Wno-use-after-free -I.. -I../include \
 		-c ../examples/use_after_free_demo.c \
 		-o obj/use_after_free_demo.o
 
