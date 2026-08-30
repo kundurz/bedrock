@@ -31,5 +31,3 @@ Measurements were collected using the following system:
 | Cache-locality collection | `perf stat`, 30 repetitions |
 | Result aggregation | Median across repeated runs |
 
-**NOTE**: The unhardened free-list implementation contained in the results is preserved in the repository's Git history at commit `9f0ace4` and was checked out in a seperate Git worktree for benchmarking.
-
