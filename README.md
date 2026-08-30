@@ -543,7 +543,7 @@ Bedrock exposes a minimal allocation interface through `bedrock.h`
 ### Building Bedrock
 Clone the repository and build the library variants
 ```bash
-git clone 
+git clone https://github.com/kundurz/bedrock.git
 cd bedrock/build
 make
 ```
