@@ -1,13 +1,18 @@
+# Build artifacts
+/build/*
+!/build/Makefile
 *.o
-main
-design_rough_notes.md
+*.a
+*.so
+
+# Debugging artifacts
 .gdb_history
-*_test
-build/fragmentation
-build/free_tests
-build/latency
-build/malloc_latency
-build/malloc_throughput
-build/mixed_workload
-build/testing
-build/throughput
+core
+core.*
+
+# Editor configuration
+.vscode/
+
+# Python cache files
+__pycache__/
+*.py[cod]
