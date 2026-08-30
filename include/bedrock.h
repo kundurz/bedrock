@@ -5,11 +5,11 @@
 /*
  * Allocate at least `bytes` bytes of suitably aligned memory.
  *
- * Returns a pointer to the allocation on success. The returned memory remains
- * valid until released with bedrock_free(). Returns NULL if the allocation
- * cannot be completed.
+ * Returns a pointer on success. Returns NULL when an allocation cannot be
+ * recorded; unrecoverable initialization or system-memory failures terminate
+ * the process.
  */
-void* bedrock_alloc(size_t bytes); 
+void *bedrock_alloc(size_t bytes);
 
 /*
  * Release an allocation returned by bedrock_alloc().

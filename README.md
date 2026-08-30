@@ -1,6 +1,6 @@
 # Bedrock: Security-Hardened Memory Allocator
 
-Bedrock is a security-hardened dynamic memory allocator. It combines slab-based small allocations and guarded-large allocations with metadata isolation, randomized placement, quarantine, and allocation validitation.
+Bedrock is a security-hardened dynamic memory allocator. It combines slab-based small allocations and guarded-large allocations with metadata isolation, randomized placement, quarantine, and allocation validation.
 
 **Author**: Linus Kundur-Zourntos<br>
 **Language**: C | **Platform**: Linux | **Build**: Make 
@@ -82,7 +82,7 @@ It is assumed the attacker can influence:
 * Allocation and free order
 * Data written into allocated objects
 * Repeated allocation patterns
-* Calls to `bedrock_free()` with NULL, stale, interior, duplicate or arbitrary pointres
+* Calls to `bedrock_free()` with NULL, stale, interior, duplicate or arbitrary pointers
 * Linear overflows and underflows originating in user allocations
 * Use of stale pointers after an object has been freed 
 
@@ -324,7 +324,7 @@ Bedrock intentionally reatins some freed memory to offset the performance overhe
 ## Exploit Demonstrations 
 
 ### 1. UAF Information Disclosure
-**Objective:** Demonstreate that freed memory can expose data from a subsequent allocation when memory is immediately reused.
+**Objective:** Demonstrate that freed memory can expose data from a subsequent allocation when memory is immediately reused.
 
 **glibc**: succeeds
 **Bedrock**: mitigated through zeroing + quarantine. 
@@ -414,7 +414,7 @@ The unhardened free-list implementation used in some of the results is preserved
 
 Bedrock currently achieves a 6.30 M operations/s on the measured small-allocation workload, compared with 36.23M operations/s for the unhardened allocator and 24.25M operations/s for glibc. THis represents an 82.6% throughput reduction relative to the unhardened implementation.
 
-This overhead is expected from Bedrock's additional validation, randomized placement, metadata isolation, quarantine, and memory-protection mechanisms. The benchmark therefore illustrates the cost of the allocator's security-oriented design rather than attempting to demonstreate superiority over production allocators.
+This overhead is expected from Bedrock's additional validation, randomized placement, metadata isolation, quarantine, and memory-protection mechanisms. The benchmark therefore illustrates the cost of the allocator's security-oriented design rather than attempting to demonstrate superiority over production allocators.
 
 ### Allocation & Free Latency
 ---
@@ -491,7 +491,7 @@ After freeing 50% of allocations, mapping overhead increased by only 0.39 percen
 ## Limitations & Future Work
 
 ### Limitations
-#### 1. No protection against arbitrary writess
+#### 1. No protection against arbitrary writes
 Bedrock's out-of-band metadata prevents the direct corruption of allocator metadata through buffer overflows orginating in user allocations. This does not protect metadata agianst exploits that take advantage of arbitrary-address write vulnerabilities.
 
 #### 2. UAF mitigation is not complete prevention
@@ -501,7 +501,7 @@ While quarantining slots after they are freed makes exploiting UAF vulnerabiliti
 Guard pages around large allocations make it harder to perform a linear overflow into memory that is outside of the region returned to the caller. However, if the overflow occurs strictly within the writable region returned to the user, it will not be detected. 
 
 #### 4. Single-threaded
-The current allocator is single-threaded and does not provide syncrhonization for concurrent allocation or deallocation.
+The current allocator is single-threaded and does not provide synchronization for concurrent allocation or deallocation.
 
 #### 5. Performance / memory overhead
 As introduced in the performance evaluation section, Bedrock's security mechanisms introduce susbtantial throughput, latency, and virtual memory overhead relative to the unhardened allocator, particularly due to metadata segregation, quarantine, guard pages, and slab-slot randomization. 
@@ -526,13 +526,13 @@ The benchmark suite could be expanded to focus on additional metrics and scenari
 
 Bedrock currently targets 64-bit Linux and requires:
 
-* GCC or another compatble C compiler
+* GCC or another compatible C compiler
 * GNU Make
 * A system supporting `mmap()`, `mprotect()`, and `getrandom()`
 
 ### Public Interface
 
-Bedrock exposes a miminal allocation interface throigh `bedrock.h`
+Bedrock exposes a minimal allocation interface through `bedrock.h`
 
 | Function | Description |
 |---|---|
@@ -576,7 +576,7 @@ gcc program.c -I../include -L. -lbedrock \
     -Wl,-rpath,'$ORIGIN' -o program
 ```
 
-The executable and `libbedrock.so` must reamin in the same directory when using the $ORIGIN configuration. $ORIGIN is a special Linux dynamic-linker variable meaning "the directory containing the executable".
+The executable and `libbedrock.so` must remain in the same directory when using the $ORIGIN configuration. $ORIGIN is a special Linux dynamic-linker variable meaning "the directory containing the executable".
 
 #### Static Linking
 ```

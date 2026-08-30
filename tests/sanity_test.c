@@ -31,7 +31,7 @@ int main() {
         }
     }
 
-    printf("[0K] Small allocation size tests pass (nothing crashed)\n");
+    printf("[OK] Small allocation size tests pass (nothing crashed)\n");
 
     char* large_ptrs[16];
     for (long unsigned int i = 0; i < sizeof(sizes) / sizeof(size_t); i++) {
@@ -45,6 +45,6 @@ int main() {
         }
     }
 
-    printf("[0K] Large allocation size tests pass (nothing crashed)\n");
+    printf("[OK] Large allocation size tests pass (nothing crashed)\n");
     return 0;
 }
