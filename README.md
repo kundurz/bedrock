@@ -1,6 +1,6 @@
 # Bedrock: Security-Hardened Memory Allocator
 
-Bedrock is a security-hardened dynamic memory allocator. It combines slab-based small allocations and guarded-large allocations with metadata isolation, randomized placement, quarantine, and pointer validation on free().
+Bedrock is a security-hardened dynamic memory allocator. It combines slab-based small allocations and guarded-large allocations with metadata isolation, randomized placement, quarantine, and pointer validation on `free()`.
 
 **Author**: Linus Kundur-Zourntos<br>
 **Language**: C | **Platform**: Linux | **Build**: Make 
